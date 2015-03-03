@@ -111,6 +111,11 @@ function Invoke-SkDeviceAction {
     }
 }
 
+Export-ModuleMember -function Get-SKDevice
+Export-ModuleMember -function Invoke-SkDeviceAction
+Export-ModuleMember -function Invoke-SKService
+Export-ModuleMember -function Set-SKCredential
+
 #Get-SKDevice | Format-Table #| Set-SkDeviceState -Action TurnOff -Verbose
 #Invoke-SkDeviceAction 12 TurnOn -Force
 #Invoke-SkDeviceAction -Id 78 -Action TurnOn
