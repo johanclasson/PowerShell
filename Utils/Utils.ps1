@@ -4,10 +4,17 @@ $ErrorActionPreference = "Stop"
 function Install-ScriptInUserModule {
     [CmdletBinding()]
     Param(
-      [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
-      [System.IO.FileInfo] $File
+      [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
+      [Alias('FullName')]
+      [string] $Path
     )
     Process {
+        # Get correct file (apparently not so easy if relative paths to a FileInfo is used inside a module...)
+        if (!(Test-Path $Path)) {
+            Write-Error "File $Path does not exist!"
+            return
+        }
+        $File = Get-Item $Path
         # Create folder
         $ModuleName = $File.BaseName
         $modulesPath = $env:PSModulePath.split(";")[0]
@@ -32,5 +39,8 @@ function Install-AllSciptsInUserModule {
     )
     Get-ChildItem -Path $Path -Filter *.ps1 -Recurse | Install-ScriptInUserModule -ModuleName $ModuleName
 }
+
+Export-ModuleMember -function Install-ScriptInUserModule
+Export-ModuleMember -function Install-AllSciptsInUserModule
 
 #Install-ScriptInUserModule -File C:\Mippel\PowerShell\Utils\Utils.ps1 -Verbose
