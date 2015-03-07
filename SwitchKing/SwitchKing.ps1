@@ -111,10 +111,114 @@ function Invoke-SkDeviceAction {
     }
 }
 
+function Check-SKHealthAndRestartIfNeeded {
+    [cmdletbinding()]    
+    param(
+        [string]$SqliteLibraryPath = "C:\Program Files\System.Data.SQLite\2010\bin\System.Data.SQLite.dll",
+        [string]$ConnectionString = "URI=file:C:\Program Files (x86)\Switch King\Switch King Server\DB\switchKing.server.db3",
+        [string]$LogEntryPath = $null
+    )
+    [string]$query = @"
+select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues]
+    inner join DataSources on [DataSources].[DataSourceID] = [DataSourceValues].[DataSourceID]  
+    where [DataSources].[DataSourceTypeName] = 'Telldus'
+    order by DataSourceValueLocalTimestamp desc limit 1
+"@
+    [void][System.Reflection.Assembly]::LoadFrom($SqliteLibraryPath)
+
+    function Get-LastDataSourceValueLocalTimestamp() {
+        $connection = New-Object System.Data.SQLite.SQLiteConnection($ConnectionString)
+        $connection.Open()
+
+        $command = New-Object System.Data.SQLite.SQLiteCommand($query,$connection)
+        $reader = $command.ExecuteReader();
+        [void]$reader.Read()
+        $dateTime = $reader.GetDateTime(0)
+
+        [void]$reader.Dispose()
+        [void]$command.Dispose()
+        [void]$connection.Dispose()
+    
+        return $dateTime
+    }
+
+    function Restart-SwitchKing() {
+        # Service dependencies:
+        # Telldus Service
+        # SwitchKing Framework Service -> SwitchKing Invocation Service -> SwitchKing REST Service -> SwitchKing Hub Communicator Service
+        # SwitchKing Framework Service -> SwitchKing Data Collector Service
+    
+        Stop-Service -Name "SwitchKing Data Collector Service" -PassThru -Force
+        Stop-Service -Name "SwitchKing Hub Communicator Service" -PassThru -Force
+        Stop-Service -Name "SwitchKing REST Service" -PassThru -Force
+        Stop-Service -Name "SwitchKing Invocation Service" -PassThru -Force
+        Stop-Service -Name "SwitchKing Framework Service" -PassThru -Force
+        Stop-Service -Name "telldusservice" -PassThru -Force
+
+        Start-Service -Name "telldusservice" -PassThru
+        Start-Service -Name "SwitchKing Framework Service" -PassThru
+        Start-Service -Name "SwitchKing Invocation Service" -PassThru
+        Start-Service -Name "SwitchKing REST Service" -PassThru
+        Start-Service -Name "SwitchKing Hub Communicator Service" -PassThru
+        Start-Service -Name "SwitchKing Data Collector Service" -PassThru
+    }
+
+    function Log-Message([string]$Message,[switch]$Error) {
+        if ($Error) {
+            $Message | Write-Error
+        }
+        else {
+            $Message | Write-Verbose
+        }
+        if ($LogEntryPath -eq $null) { 
+            return
+        }
+        $logEntry = "[{0:yyyy-MM-dd HH:mm:ss.fff}] - $Message" -f (Get-Date)
+        Add-Content -Path $LogEntryPath -Value $logEntry
+    }
+
+    function Wait-UntilFirstDataSourceValue([datetime]$LastTime) {
+        $nextTime = $LastTime
+        $timer = New-Object System.Diagnostics.Stopwatch
+        Write-Verbose "Waiting"
+        $timer.Start()
+        while($nextTime.ToString() -eq $LastTime.ToString()) {
+            Write-Verbose "."
+            Start-Sleep -Seconds 1
+            if ($timer.Elapsed.Minutes > 15) {
+                Log-Message "Wait for new data source values timed out! $($timer.Elapsed)"
+                Exit-PSSession -ErrorVariable -1
+            }
+            $nextTime = Get-LastDataSourceValueLocalTimestamp
+        }
+        " and found one at {0:yyyy-MM-dd HH:mm:ss.fff}!" -f $nextTime | Write-Verbose
+        Log-Message "Waited for new data source values for $($timer.Elapsed)"
+    }
+
+    function Check-SKHealthAndRestartIfNeededInternal {
+        try {
+            $lastTime = Get-LastDataSourceValueLocalTimestamp
+            "Last data source value was added {0:yyyy-MM-dd HH:mm:ss.fff}" -f $lastTime | Write-Verbose
+            $aFewMinutesAgo = (Get-Date).AddMinutes(-5)
+            if ($lastTime -lt $aFewMinutesAgo) {
+                Log-Message ("Have not recieved any data source values since {0:yyyy-MM-dd HH:mm:ss.fff}, restarting services..." -f $lastTime)
+                Restart-SwitchKing
+                Wait-UntilFirstDataSourceValue $lastTime
+            }
+        }
+        catch [Exception] {
+            Log-Message "Something bad happended: $($_.Exception.Message)" -Error
+        }
+    }
+
+    Check-SKHealthAndRestartIfNeededInternal
+}
+
 Export-ModuleMember -function Get-SKDevice
 Export-ModuleMember -function Invoke-SkDeviceAction
 Export-ModuleMember -function Invoke-SKService
 Export-ModuleMember -function Set-SKCredential
+Export-ModuleMember -function Check-SKHealthAndRestartIfNeeded
 
 #Get-SKDevice | Format-Table #| Set-SkDeviceState -Action TurnOff -Verbose
 #Invoke-SkDeviceAction 12 TurnOn -Force
