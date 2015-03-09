@@ -111,12 +111,13 @@ function Invoke-SkDeviceAction {
     }
 }
 
-function Check-SKHealthAndRestartIfNeeded {
+function Restart-SKIfNoActivity {
     [cmdletbinding()]    
     param(
         [string]$SqliteLibraryPath = "C:\Program Files\System.Data.SQLite\2010\bin\System.Data.SQLite.dll",
         [string]$ConnectionString = "URI=file:C:\Program Files (x86)\Switch King\Switch King Server\DB\switchKing.server.db3",
-        [string]$LogEntryPath = $null
+        [ValidateRange(0,[Int32]::MaxValue)]
+        [int]$LimitInMinutes = 5
     )
     [string]$query = @"
 select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues]
@@ -147,20 +148,28 @@ select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues
         # Telldus Service
         # SwitchKing Framework Service -> SwitchKing Invocation Service -> SwitchKing REST Service -> SwitchKing Hub Communicator Service
         # SwitchKing Framework Service -> SwitchKing Data Collector Service
-    
-        Stop-Service -Name "SwitchKing Data Collector Service" -PassThru -Force
-        Stop-Service -Name "SwitchKing Hub Communicator Service" -PassThru -Force
-        Stop-Service -Name "SwitchKing REST Service" -PassThru -Force
-        Stop-Service -Name "SwitchKing Invocation Service" -PassThru -Force
-        Stop-Service -Name "SwitchKing Framework Service" -PassThru -Force
-        Stop-Service -Name "telldusservice" -PassThru -Force
+        
+        function Log-ServiceVerbose {
+            param(
+                [Parameter(ValueFromPipeline=$true)]
+                $Service
+            )
+            $Service | % { Write-Verbose "[$($_.Status)]`t$($_.DisplayName)" }
+        }
 
-        Start-Service -Name "telldusservice" -PassThru
-        Start-Service -Name "SwitchKing Framework Service" -PassThru
-        Start-Service -Name "SwitchKing Invocation Service" -PassThru
-        Start-Service -Name "SwitchKing REST Service" -PassThru
-        Start-Service -Name "SwitchKing Hub Communicator Service" -PassThru
-        Start-Service -Name "SwitchKing Data Collector Service" -PassThru
+        Stop-Service -Name "SwitchKing Data Collector Service" -PassThru -Force | Log-ServiceVerbose
+        Stop-Service -Name "SwitchKing Hub Communicator Service" -PassThru -Force | Log-ServiceVerbose
+        Stop-Service -Name "SwitchKing REST Service" -PassThru -Force | Log-ServiceVerbose
+        Stop-Service -Name "SwitchKing Invocation Service" -PassThru -Force | Log-ServiceVerbose
+        Stop-Service -Name "SwitchKing Framework Service" -PassThru -Force | Log-ServiceVerbose
+        Stop-Service -Name "telldusservice" -PassThru -Force | Log-ServiceVerbose
+
+        Start-Service -Name "telldusservice" -PassThru | Log-ServiceVerbose
+        Start-Service -Name "SwitchKing Framework Service" -PassThru | Log-ServiceVerbose
+        Start-Service -Name "SwitchKing Invocation Service" -PassThru | Log-ServiceVerbose
+        Start-Service -Name "SwitchKing REST Service" -PassThru | Log-ServiceVerbose
+        Start-Service -Name "SwitchKing Hub Communicator Service" -PassThru | Log-ServiceVerbose
+        Start-Service -Name "SwitchKing Data Collector Service" -PassThru | Log-ServiceVerbose
     }
 
     function Log-Message([string]$Message,[switch]$Error) {
@@ -170,17 +179,14 @@ select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues
         else {
             $Message | Write-Verbose
         }
-        if ($LogEntryPath -eq $null) { 
-            return
-        }
         $logEntry = "[{0:yyyy-MM-dd HH:mm:ss.fff}] - $Message" -f (Get-Date)
-        Add-Content -Path $LogEntryPath -Value $logEntry
+        Write-Output $logEntry
     }
 
     function Wait-UntilFirstDataSourceValue([datetime]$LastTime) {
         $nextTime = $LastTime
         $timer = New-Object System.Diagnostics.Stopwatch
-        Write-Verbose "Waiting"
+        Write-Verbose "Waiting for new data source value"
         $timer.Start()
         while($nextTime.ToString() -eq $LastTime.ToString()) {
             Write-Verbose "."
@@ -191,15 +197,15 @@ select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues
             }
             $nextTime = Get-LastDataSourceValueLocalTimestamp
         }
-        " and found one at {0:yyyy-MM-dd HH:mm:ss.fff}!" -f $nextTime | Write-Verbose
+        "Found one at {0:yyyy-MM-dd HH:mm:ss.fff}!" -f $nextTime | Write-Verbose
         Log-Message "Waited for new data source values for $($timer.Elapsed)"
     }
 
-    function Check-SKHealthAndRestartIfNeededInternal {
+    function Check-SKHealthAndRestartIfNeeded {
         try {
             $lastTime = Get-LastDataSourceValueLocalTimestamp
             "Last data source value was added {0:yyyy-MM-dd HH:mm:ss.fff}" -f $lastTime | Write-Verbose
-            $aFewMinutesAgo = (Get-Date).AddMinutes(-5)
+            $aFewMinutesAgo = (Get-Date).AddMinutes(-1 * $LimitInMinutes)
             if ($lastTime -lt $aFewMinutesAgo) {
                 Log-Message ("Have not recieved any data source values since {0:yyyy-MM-dd HH:mm:ss.fff}, restarting services..." -f $lastTime)
                 Restart-SwitchKing
@@ -211,14 +217,14 @@ select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues
         }
     }
 
-    Check-SKHealthAndRestartIfNeededInternal
+    Check-SKHealthAndRestartIfNeeded
 }
 
 Export-ModuleMember -function Get-SKDevice
 Export-ModuleMember -function Invoke-SkDeviceAction
 Export-ModuleMember -function Invoke-SKService
 Export-ModuleMember -function Set-SKCredential
-Export-ModuleMember -function Check-SKHealthAndRestartIfNeeded
+Export-ModuleMember -function Restart-SKIfNoActivity
 
 #Get-SKDevice | Format-Table #| Set-SkDeviceState -Action TurnOff -Verbose
 #Invoke-SkDeviceAction 12 TurnOn -Force
