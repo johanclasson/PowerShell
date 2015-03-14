@@ -1,6 +1,18 @@
 ﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Get-Movies{
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+    return Get-ChildItem $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse
+}
+
+function Get-SrtPath([string]$Path,[IO.FileInfo]$File) {
+    return Join-Path $Path -ChildPath "$($File.BaseName).srt"
+}
+
 function Move-Movie {
     [CmdletBinding()]
     param(
@@ -10,14 +22,6 @@ function Move-Movie {
         [string]$Destination,
         [switch]$TidyUp
     )
-
-    function Get-Movies{
-        param(
-            [Parameter(Mandatory=$true)]
-            [string]$Path
-        )
-        return Get-ChildItem $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse
-    }
 
     function Convert-MoviesFilenameToParts {
         param(
@@ -98,9 +102,9 @@ function Move-Movie {
                 Write-Verbose "Created folder $destSubPath"
             }
             #Move subtitle
-            $subtitlePath = Join-Path $File.Directory -ChildPath "$($File.BaseName).srt"
+            $subtitlePath = Get-SrtPath -Path $File.Directory -File $File
             if (-not (Test-Path -LiteralPath $subtitlePath)) {
-                Invoke-DownloadSubtitle -File $File
+                Invoke-DownloadSubtitle -Path $File.FullName
             }
             if (Test-Path -LiteralPath $subtitlePath) {
                 Move-Item -LiteralPath $subtitlePath -Destination $destSubPath
@@ -136,14 +140,22 @@ function Move-Movie {
     Delete-EmptyFolder
 }
 
-function Invoke-DownloadSubtitle ([IO.FileInfo]$File) {
+function Invoke-DownloadSubtitle {
+    [CmdletBinding()]
+    param(
+        [string]$Path,
+        [string]$Language = "English"
+    )
+
+    Write-Verbose "Start download subtitle for $Path"
+    [IO.FileInfo]$File = Get-Item -LiteralPath $Path
     
     function Invoke-SubsceneRequest([string]$Path, [string]$OutFile) {
-        if ($Path -eq "") {
+        if ([string]::IsNullOrEmpty($Path)) {
             throw "Empty path"
         }
         $uri = "http://subscene.com$Path"
-        if ($OutFile -eq "") {
+        if ([string]::IsNullOrEmpty($OutFile)) {
             return Invoke-WebRequest -Uri $uri
         }
         Invoke-WebRequest -Uri $uri -OutFile $OutFile
@@ -191,15 +203,15 @@ function Invoke-DownloadSubtitle ([IO.FileInfo]$File) {
     # Search for subtitle
     $name = $File.BaseName
     $result = Invoke-SubsceneRequest "/subtitles/release?q=$name"
-    $detailsUri =  Select-Link -Result $result -InnerText "English $name"
-    if ($detailsUri -eq "") {
-        Write-Warning "Could not find any english subtitles for $name"
+    $detailsUri =  Select-Link -Result $result -InnerText "$Language $name"
+    if ([string]::IsNullOrEmpty($detailsUri)) {
+        Write-Warning "Could not find any $($Language.ToLower()) subtitles for $name"
         return
     }
     # Navigate to subtitle
     $result = Invoke-SubsceneRequest $detailsUri
     $downloadLink = Select-Link -Result $result -InnerText "Download English Subtitle"
-    if ($downloadLink -eq "") {
+    if ([string]::IsNullOrEmpty($downloadLink)) {
         Write-Warning "Could not find the download link"
         return
     }
@@ -217,8 +229,32 @@ function Invoke-DownloadSubtitle ([IO.FileInfo]$File) {
     }
 }
 
+function Get-MissingSubtitles {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [string]$Language = "English"
+    )
+    $movies = Get-Movies -Path $Path
+    $movies | foreach {
+        $subtitlePath = Get-SrtPath -Path $_.Directory -File $_
+        if (-not(Test-Path $subtitlePath)) {
+            Invoke-DownloadSubtitle -Path $_.FullName -Language $Language
+        }
+    }
+}
+
+# TODO: Recognize 4x07 format
+#Y:\TV-serier\Downton Abbey\Season 4
+
+# TODO: Strange error
+#Invoke-DownloadSubtitle -Path "Y:\TV-serier\Firefly\Firefly [1x13] Objects In Space.avi" -Verbose
+
 Export-ModuleMember -function Move-Movie
 Export-ModuleMember -function Invoke-DownloadSubtitle
+Export-ModuleMember -function Get-MissingSubtitles
 
-#Invike-DownloadSubtitle (Get-Item 'Y:\TV-serier\The 100\s02\The.100.S02E10.HDTV.x264-KILLERS.mp4')
+#Invoke-DownloadSubtitle (Get-Item 'Y:\TV-serier\The 100\s02\The.100.S02E10.HDTV.x264-KILLERS.mp4')
 #Move-Movie -Path W:\ -Destination Y:\TV-serier -TidyUp -Verbose
+#Get-MissingSubtitles -Path "Y:\TV-serier\The 100\s02" -Verbose
