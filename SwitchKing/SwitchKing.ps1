@@ -61,25 +61,12 @@ function Invoke-SKService ([string]$Action, [string]$Uri) {
     return [xml]$responce.Content
 }
 
-function Set-SKCredential {
-    $credential = Get-Credential
-    $entry = "$($credential.UserName),$(ConvertFrom-SecureString $credential.Password)"
-    # Save for current session
-    $env:SwitchKingCredential = $entry
-    # Save for next session
-    [Environment]::SetEnvironmentVariable("SwitchKingCredential", $entry, "User")
+function Save-SKCredential {
+    Save-Credential -Key "SwitchKing"
 }
 
 function Get-SKCredential {
-    Set-StrictMode -Off
-    if ($env:SwitchKingCredential -eq $null) {
-        Set-SKCredential        
-    }
-    $strings = $env:SwitchKingCredential.split(',')
-    $username = $strings[0]
-    $password = ConvertTo-SecureString $strings[1]
-    $credential = New-Object System.Management.Automation.PSCredential $username,$password
-    return $credential
+    return Get-SavedCredential -Key "SwitchKing"
 }
 
 function Invoke-SkDeviceAction {
@@ -219,12 +206,6 @@ select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues
 
     Check-SKHealthAndRestartIfNeeded
 }
-
-Export-ModuleMember -function Get-SKDevice
-Export-ModuleMember -function Invoke-SkDeviceAction
-Export-ModuleMember -function Invoke-SKService
-Export-ModuleMember -function Set-SKCredential
-Export-ModuleMember -function Restart-SKIfNoActivity
 
 #Get-SKDevice | Format-Table #| Set-SkDeviceState -Action TurnOff -Verbose
 #Invoke-SkDeviceAction 12 TurnOn -Force
