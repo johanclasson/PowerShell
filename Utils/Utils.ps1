@@ -44,7 +44,7 @@ function Install-ScriptInUserModule {
         Copy-Item $filePath $newFilePath
         $allFilesSource = Join-Path $Path "*"
         Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile
-        Write-Verbose "Copied $Path"
+        Write-Verbose "Copied $Path to $moduleTargetPath"
     }
 }
 
@@ -56,7 +56,7 @@ function Install-AllSciptsInUserModule {
     Get-ChildItem -Path $Path -Filter *.ps1 -Recurse |
         %{ $_.Directory } |
         select -Unique |
-        Install-ScriptInUserModule -ModuleName $ModuleName
+        Install-ScriptInUserModule
 }
 
 # Install SQLite PS Module:
@@ -92,4 +92,34 @@ function Get-SavedCredential() {
     return $credential
 }
 
-#Install-ScriptInUserModule -Path C:\Dev\PowerShell\Utils -Verbose
+function Send-Gmail {
+    Param(
+        [Parameter(Mandatory=$True)]
+        [string]$EmailFrom,
+        [Parameter(Mandatory=$True)]
+        [string[]]$EmailTo,
+        [Parameter(Mandatory=$True)]
+        [string]$Subject,
+        [Parameter(Mandatory=$True)]
+        [string]$Body,
+        [switch]$Html
+    )
+    $message = New-Object System.Net.Mail.MailMessage
+    $message.From = $EmailFrom
+    $EmailTo | foreach { $message.To.Add($_) }
+    $message.Subject = $Subject
+    $message.IsBodyHtml = $Html
+    $message.Body = $Body
+
+    $SMTPClient = New-Object Net.Mail.SmtpClient("smtp.gmail.com", 587) 
+    $SMTPClient.EnableSsl = $true 
+    $SMTPClient.Credentials = [Net.NetworkCredential](Get-SavedCredential 'Gmail') 
+    $SMTPClient.Send($message)
+}
+
+function Save-GmailCredential {
+    Save-Credential -Key "Gmail"
+}
+
+#Install-ScriptInUserModule -Path C:\Mippel\PowerShell\Utils -Verbose
+#Install-AllSciptsInUserModule -Path C:\Mippel\PowerShell -Verbose

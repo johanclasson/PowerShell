@@ -202,10 +202,13 @@ function Invoke-DownloadSubtitle {
 
     # Search for subtitle
     $name = $File.BaseName
+    $desiredLinkText = "$Language $name"
+    #TODO: if (Is-SubtitleMissing $desiredLinkText) { return }
     $result = Invoke-SubsceneRequest "/subtitles/release?q=$name"
-    $detailsUri =  Select-Link -Result $result -InnerText "$Language $name"
+    $detailsUri =  Select-Link -Result $result -InnerText $desiredLinkText
     if ([string]::IsNullOrEmpty($detailsUri)) {
         Write-Warning "Could not find any $($Language.ToLower()) subtitles for $name"
+        #TODO: Save-MissingSubtitle $desiredLinkText
         return
     }
     # Navigate to subtitle
