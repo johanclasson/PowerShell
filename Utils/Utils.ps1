@@ -49,6 +49,7 @@ function Install-ScriptInUserModule {
 }
 
 function Install-AllSciptsInUserModule {
+    [CmdletBinding()]
     Param(
       [Parameter(Mandatory=$True)]
       [System.IO.DirectoryInfo] $Path
