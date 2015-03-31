@@ -1,7 +1,7 @@
 function Init-Blocket {
     # BlocketSearchHits table
-    if (-not (Test-Path -Path "sqlite:/BlocketSearchHits")) {
-        new-item sqlite:/BlocketSearchHits -uri text not null -id integer primary key | Out-Null
+    if (-not (Test-Path -Path "sqlite:/BlocketSearchHit")) {
+        new-item sqlite:/BlocketSearchHit -uri text not null -id integer primary key | Out-Null
     }
     if (-not (Test-Path -Path "sqlite:/BlocketSearchQuery")) {
         new-item sqlite:/BlocketSearchQuery -text text not null -id integer primary key | Out-Null

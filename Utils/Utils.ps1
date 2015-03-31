@@ -122,5 +122,16 @@ function Save-GmailCredential {
     Save-Credential -Key "Gmail"
 }
 
+function Write-Log([string]$Message,[switch]$Error) {
+    $logEntry = "[{0:yyyy-MM-dd HH:mm:ss.fff}] - $Message" -f (Get-Date)
+    Write-Output $logEntry
+    if ($Error) {
+        $Message | Write-Error
+    }
+    else {
+        $Message | Write-Verbose
+    }
+}
+
 #Install-ScriptInUserModule -Path C:\Mippel\PowerShell\Utils -Verbose
 #Install-AllSciptsInUserModule -Path C:\Mippel\PowerShell -Verbose

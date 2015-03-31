@@ -200,15 +200,26 @@ function Invoke-DownloadSubtitle {
         }
     }
 
+    function Save-MissingSubtitle([string]$Text) {
+        New-Item sqlite:\SubsceneSearchMiss -text $Text | Out-Null
+    }
+
+    function Is-SubtitleMissing([string]$Text) {
+        return @(Get-ChildItem sqlite:\SubsceneSearchMiss -Filter "text='$Text'").Length -gt 0
+    }
+
     # Search for subtitle
     $name = $File.BaseName
     $desiredLinkText = "$Language $name"
-    #TODO: if (Is-SubtitleMissing $desiredLinkText) { return }
+    if (Is-SubtitleMissing $desiredLinkText) {
+        Write-Warning "Could not previously find any $($Language.ToLower()) subtitles for $name"
+        return
+    }
     $result = Invoke-SubsceneRequest "/subtitles/release?q=$name"
     $detailsUri =  Select-Link -Result $result -InnerText $desiredLinkText
     if ([string]::IsNullOrEmpty($detailsUri)) {
         Write-Warning "Could not find any $($Language.ToLower()) subtitles for $name"
-        #TODO: Save-MissingSubtitle $desiredLinkText
+        Save-MissingSubtitle $desiredLinkText
         return
     }
     # Navigate to subtitle
@@ -242,7 +253,7 @@ function Get-MissingSubtitles {
     $movies = Get-Movies -Path $Path
     $movies | foreach {
         $subtitlePath = Get-SrtPath -Path $_.Directory -File $_
-        if (-not(Test-Path $subtitlePath)) {
+        if (-not(Test-Path -LiteralPath $subtitlePath)) {
             Invoke-DownloadSubtitle -Path $_.FullName -Language $Language
         }
     }
@@ -251,13 +262,8 @@ function Get-MissingSubtitles {
 # TODO: Recognize 4x07 format
 #Y:\TV-serier\Downton Abbey\Season 4
 
-# TODO: Strange error
-#Invoke-DownloadSubtitle -Path "Y:\TV-serier\Firefly\Firefly [1x13] Objects In Space.avi" -Verbose
-
-Export-ModuleMember -function Move-Movie
-Export-ModuleMember -function Invoke-DownloadSubtitle
-Export-ModuleMember -function Get-MissingSubtitles
-
 #Invoke-DownloadSubtitle (Get-Item 'Y:\TV-serier\The 100\s02\The.100.S02E10.HDTV.x264-KILLERS.mp4')
+#Invoke-DownloadSubtitle (Get-Item 'Y:\TV-serier\The 100\s02\the.100.203.hdtv-lol.mp4')
 #Move-Movie -Path W:\ -Destination Y:\TV-serier -TidyUp -Verbose
 #Get-MissingSubtitles -Path "Y:\TV-serier\The 100\s02" -Verbose
+#Get-MissingSubtitles w:\ -Verbose

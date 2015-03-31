@@ -37,7 +37,7 @@ function Get-SearchHitContent([string]$Uri) {
 }
 
 function Test-Hit($Uri) {
-    @(Get-ChildItem sqlite:\BlocketSearchHits -Filter "uri='$Uri'").Length -gt 0
+    @(Get-ChildItem sqlite:\BlocketSearchHit -Filter "uri='$Uri'").Length -gt 0
 }
 
 function Test-Query($Query) {
@@ -45,7 +45,7 @@ function Test-Query($Query) {
 }
 
 function Add-Hit($Uri) {
-    New-Item sqlite:\BlocketSearchHits -uri $Uri | Out-Null
+    New-Item sqlite:\BlocketSearchHit -uri $Uri | Out-Null
 }
 
 function Add-Query($Query) {
@@ -103,20 +103,25 @@ function Send-BlocketSearchHitsMail {
             Write-Output "Added $(@($hits).Length) items to recorded search hits. No mails are sent out this time!"
             return
         }
+        $newHits = @($hits | where { -not (Test-Hit $_) })
+        if ($newHits.Length -eq 0) {
+            return
+        }
+        Write-Log "Found new search hits"
         # Send emails for new hits
-        $hits | where { -not (Test-Hit $_) } | foreach {
+        $newHits | foreach {
             $hit = $_
             $content = Get-SearchHitContent $hit
             $body = $content | Format-Body
             $subject = "Blocket: $($content.Title) - $($content.Price)"
             Send-Gmail -EmailFrom $EmailFrom -EmailTo $EmailTo -Subject $subject -Body $body -Html
-            Write-Output "Email with subject '$subject' to $EmailTo"
+            Write-Log "Email with subject '$subject' to $EmailTo"
             Add-Hit $hit
         } 
     }
 }
 
-function Remove-BlocketRecordedHits {    [CmdletBinding()]    param()    Remove-Item sqlite:\BlocketSearchHits\*
+function Remove-BlocketRecordedHits {    [CmdletBinding()]    param()    Remove-Item sqlite:\BlocketSearchHit\*
     Remove-Item sqlite:\BlocketSearchQuery\*
 }
 
