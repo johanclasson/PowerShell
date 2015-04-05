@@ -5,9 +5,9 @@ PowerShell modules and scripts, among other things for automating my everyday li
 * [SQLite PowerShell Provider](https://psqlite.codeplex.com/) - So that the persistent store can be used to save for example credentials or command history.
 
 ## Get started
-Copy the dependent modules to your module folder, preferably the one returned by ```$env:PSModulePath.Split(';')[0]```. Then install the Powershell modules by running the following:
+Copy the dependent modules to your module folder, preferably the one returned by ```$env:PSModulePath.Split(';')[0]```. Then install the PowerShell modules by running the following:
 ```
-cd C:\PathToRepo\Powershell
+cd C:\PathToRepo\PowerShell
 . .\Utils\Utils.ps1
 Install-AllSciptsInUserModule . -Verbose
 ```
@@ -15,7 +15,7 @@ Install-AllSciptsInUserModule . -Verbose
 # Modules
 
 ## Blocket
-Functionality for searching for ads at [Blocket.se](http://www.blocket.se/). An email is sent out when new content i discovered.
+Functionality for searching for ads at [Blocket.se](http://www.blocket.se/). An email is sent out when new content is discovered.
 
 ## SwitchKing
 Is used against the Rest API of [Switch King](http://www.switchking.se), which is an application for controlling and scheduling remote relays and reading sensor information.

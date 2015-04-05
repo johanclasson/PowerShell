@@ -133,5 +133,113 @@ function Write-Log([string]$Message,[switch]$Error) {
     }
 }
 
+function Convert-HtmlNode {
+    [CmdletBinding()]
+    Param(
+      [Parameter(Mandatory=$false)]
+      [string[]] $AttributeNames,
+      [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+      [HtmlAgilityPack.HtmlNode] $Node
+    )
+    Process {
+        $converted = @{
+            OuterHtml = $Node.OuterHtml
+            InnerHtml = $Node.InnerHtml
+        }
+        if ($AttributeNames -ne $null) {
+            $AttributeNames | foreach {
+                $value = $null
+                if ($Node.Attributes.Contains($_)) { 
+                    $value = $Node.Attributes[$_].Value
+                }
+                $converted.Add($_,$value)
+            }
+        }
+        return New-Object psobject -Property $converted
+    }
+}
+
+function Read-Html {
+    [CmdletBinding()]
+    [OutputType("HtmlAgilityPack.HtmlNode")]
+    Param(
+      [Parameter(Mandatory=$True)]
+      [string] $Url
+    )
+
+    $hw = New-Object HtmlAgilityPack.HtmlWeb
+    $doc = $hw.Load($Url)
+
+    return $doc.DocumentNode
+}
+
+function Select-HtmlByXPath {
+    [CmdletBinding()]
+    [OutputType("HtmlAgilityPack.HtmlNode")]
+    param(
+        [Parameter(Mandatory=$True)]
+        [string]$XPath,
+        [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+        [HtmlAgilityPack.HtmlNode]$Node
+    )
+    Process {
+        $foundNodes = $Node.SelectNodes($XPath)
+        if ($foundNodes -eq $null) {
+            return @()
+        }
+        return $foundNodes
+    }
+}
+
+function Select-HtmlLink {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+        [HtmlAgilityPack.HtmlNode]$Node
+    )
+    Process {
+        return $Node | Select-HtmlByXPath -XPath "//a[@href]"
+    }
+}
+
+function Select-HtmlImage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+        [HtmlAgilityPack.HtmlNode]$Node
+    )
+    Process {
+        return $Node | Select-HtmlByXPath -XPath "//img[@src]"
+    }
+}
+
+function Select-HtmlByClass {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$True)]
+        [string]$Class,
+        [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+        [HtmlAgilityPack.HtmlNode]$Node
+    )
+    Process {
+        return $Node | Select-HtmlByXPath -XPath "//*[contains(@class,'$Class')]"
+    }
+}
+
+function Select-HtmlById {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$True)]
+        [string]$Id,
+        [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+        [HtmlAgilityPack.HtmlNode]$Node
+    )
+    Process {
+        return $Node | Select-HtmlByXPath -XPath "//*[@id='$Id']"
+    }
+}
+
+#Read-Html "http://www.blocket.se/orebro/Hemnes_sanggavel_2_st_90_sangar_59591317.htm?ca=8&amp;w=1" |
+#    Select-HtmlById -Id main_image| Convert-HtmlNode class,id | Format-Table -Wrap
 #Install-ScriptInUserModule -Path C:\Mippel\PowerShell\Utils -Verbose
 #Install-AllSciptsInUserModule -Path C:\Mippel\PowerShell -Verbose
