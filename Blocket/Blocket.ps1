@@ -3,35 +3,26 @@ $ErrorActionPreference = "Stop"
 
 function Get-BlocketSearchHits([string]$Query, [string]$Category, [string]$Area) {
     if ([string]::IsNullOrEmpty($Category)) {
-        $Category = 2040
+        $Category = 0 # 2040 is furniture
     }
     if ([string]::IsNullOrEmpty($Area)) {
         $Area = "orebro"
     }
     $baseUri = "http://www.blocket.se/$($Area)?q=$($query.Trim())&cg=$Category&w=1&st=s&c=&ca=8&is=1&l=0&md=th"
-    $result = Invoke-WebRequest $baseUri
-    $result.Links |
-        where { $_.outerHTML -match 'class=item_link' } |
-        foreach { $_.href }
+    return Read-Html $baseUri | Select-HtmlByClass "item_link" | Get-HtmlAttribute href
 }
 
 function Get-SearchHitContent([string]$Uri) {
-    $result = Invoke-WebRequest $Uri
-    $images = $result.links.href | where { $_ -match "jpg$" }
-    if ($images -eq $null) {
-        $images = $result.Images |
-            where { $_.PSobject.Properties.name -match "^id$" -and $_.id -eq 'main_image' } |
-            select -First 1 |
-            foreach { $_.src }
+    $html = Read-Html $Uri
+    $images = $html | Select-HtmlLink | Get-HtmlAttribute href | where { $_ -match "jpg$" }
+    if ($images -eq $null) { # If there is only one image in the ad, no thumbnail links are shown
+        $images = $html | Select-HtmlById main_image | Get-HtmlAttribute src
     }
-    $body = $result.ParsedHtml.body
-    $title = $body.getElementsByTagName('h2') | select -First 1 | %{ $_.innerText.Trim() }
-    $text = $body.getElementsByTagName('div') |
-        where { $_.getAttributeNode('class').Value -eq 'body' } |
-        foreach { $_.innerHtml }
-    $price = $body.getElementsByTagName('span') |
-        where { $_.getAttributeNode('id').Value -eq 'vi_price' } |
-        foreach { $_.innerText.Trim() }
+    $title = $html | Select-HtmlByXPath "//h2" | select -First 1 | %{ $_.innerText.Trim() }
+    $text = $html | Select-HtmlByClass body | foreach { 
+        $_.innerHtml.Replace("<!-- Info page -->","").Trim()
+    }
+    $price = $html | Select-HtmlById vi_price | foreach { $_.innerText.Trim() }
     
     return New-Object PSObject -Property @{ 'images'=$images; 'title'=$title; 'text'=$text; 'price'="$price"; 'uri'=$Uri }
 }
@@ -128,4 +119,3 @@ function Remove-BlocketRecordedHits {    [CmdletBinding()]    param()    Remo
 #Remove-BlocketData -Verbose
 #Send-BlocketSearchHitsMail "*hemnes* *byrå*" "johan@classon.eu","johan2@classon.eu" "johan@classon.eu" -Verbose
 #Get-BlocketSearchHits "*hemnes* *byrå*"
-#Get-SearchHitContent "http://www.blocket.se/orebro/Matbord_59466470.htm?ca=8&w=1" | Format-Body

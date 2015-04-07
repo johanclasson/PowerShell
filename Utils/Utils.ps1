@@ -8,6 +8,7 @@ function Get-PSModulePath {
 function Install-ScriptInUserModule {
     [CmdletBinding()]
     Param(
+      [switch]$SkipDll,
       [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
       [Alias('FullName')]
       [string] $Path
@@ -31,19 +32,25 @@ function Install-ScriptInUserModule {
             return
         }
         # Create folder
+        $filter = ""
+        if ($SkipDll) {
+            $filter = "*.dll"
+        }
         $modulesPath = Get-PSModulePath
         $moduleTargetPath = Join-Path -Path $modulesPath -ChildPath $ModuleName
         if(Test-Path $moduleTargetPath) {
-            Remove-Item $moduleTargetPath -Force -Recurse
+            Remove-Item $moduleTargetPath -Force -Recurse -Exclude $filter
             Write-Verbose "Removed directory $moduleTargetPath"
         }
-        New-Item -Path $moduleTargetPath -ItemType Directory | Out-Null
+        if(-not (Test-Path $moduleTargetPath)) { # Folder might still be there because of $filter
+            New-Item -Path $moduleTargetPath -ItemType Directory | Out-Null
+        }
         Write-Verbose "Created directory $moduleTargetPath"
         # Copy file
         $newFilePath = Join-Path -Path $moduleTargetPath "$ModuleName.psm1"
         Copy-Item $filePath $newFilePath
         $allFilesSource = Join-Path $Path "*"
-        Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile
+        Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile,$filter
         Write-Verbose "Copied $Path to $moduleTargetPath"
     }
 }
@@ -52,12 +59,18 @@ function Install-AllSciptsInUserModule {
     [CmdletBinding()]
     Param(
       [Parameter(Mandatory=$True)]
-      [System.IO.DirectoryInfo] $Path
+      [System.IO.DirectoryInfo] $Path,
+      [switch]$SkipDll
     )
-    Get-ChildItem -Path $Path -Filter *.ps1 -Recurse |
+    $modules = Get-ChildItem -Path $Path -Filter *.ps1 -Recurse |
         %{ $_.Directory } |
-        select -Unique |
-        Install-ScriptInUserModule
+        select -Unique
+    if ($SkipDll) {
+        $modules | Install-ScriptInUserModule -SkipDll
+    }
+    else {
+        $modules | Install-ScriptInUserModule
+    }
 }
 
 # Install SQLite PS Module:
@@ -133,6 +146,22 @@ function Write-Log([string]$Message,[switch]$Error) {
     }
 }
 
+function Get-HtmlAttribute {
+    [CmdletBinding()]
+    Param(
+      [Parameter(Mandatory=$true)]
+      [string] $AttributeName,
+      [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+      [HtmlAgilityPack.HtmlNode] $Node
+    )
+    Process {
+        if ($Node.Attributes.Contains($AttributeName)) { 
+            return $Node.Attributes[$AttributeName].Value
+        }
+        return $null
+    }
+}
+
 function Convert-HtmlNode {
     [CmdletBinding()]
     Param(
@@ -148,10 +177,7 @@ function Convert-HtmlNode {
         }
         if ($AttributeNames -ne $null) {
             $AttributeNames | foreach {
-                $value = $null
-                if ($Node.Attributes.Contains($_)) { 
-                    $value = $Node.Attributes[$_].Value
-                }
+                $value = Get-HtmlAttribute -AttributeName $_ -Node $Node
                 $converted.Add($_,$value)
             }
         }
