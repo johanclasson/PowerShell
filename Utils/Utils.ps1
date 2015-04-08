@@ -50,7 +50,7 @@ function Install-ScriptInUserModule {
         $newFilePath = Join-Path -Path $moduleTargetPath "$ModuleName.psm1"
         Copy-Item $filePath $newFilePath
         $allFilesSource = Join-Path $Path "*"
-        Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile,$filter
+        Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile,$filter,"*.Tests.ps1"
         Write-Verbose "Copied $Path to $moduleTargetPath"
     }
 }

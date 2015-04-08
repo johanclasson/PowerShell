@@ -1,5 +1,5 @@
 # PowerShell
-PowerShell modules and scripts, among other things for automating my everyday life.
+PowerShell modules and scripts for automation of my everyday life.
 
 ## Dependent modules
 * [SQLite PowerShell Provider](https://psqlite.codeplex.com/) - So that the persistent store can be used to save for example credentials or command history.
@@ -27,6 +27,9 @@ I keep my TV-series in a separate folder organized by name and season. When new 
 
 This module helps in automating these tedious tasks.
 
+## Outlook
+One can normally use Outlook rules to redirect email automatically, even to external recipients. But if your local exchange admins has not configured Exchange to allow that, then this does not work. This module can be used to schedule a task with does the automatic redirection anyway!
+
 ## Utils
 Common functionality for the other modules. For example credential handling, mail sending etc.
 
@@ -50,7 +53,7 @@ I have had a number problems with `(Invoke-HtmlRequest ...).ParsedHtml` to searc
 * It has very few search related methods, and its `getElementById` does not even work
 * When scheduling, the html parsing sometimes made the script hang indefinitely
 
-Here comes [Html Agility Pack](https://htmlagilitypack.codeplex.com/) to the rescue. Fast, reliable, and quite powerful since it use XPath. It's simply awesome! It was a relatively straightforward process using it for making for example this command to work:
+Here comes [Html Agility Pack](https://htmlagilitypack.codeplex.com/) to the rescue. Fast, reliable, and quite powerful since it use XPath. It's simply awesome! For example, it was a relatively straightforward process using it for making this command to work:
 ```
 Import-Module Utils
 Read-Html "http://mysite.xyz" | Select-HtmlById myid | Get-HtmlAttribute href
