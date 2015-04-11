@@ -265,6 +265,137 @@ function Select-HtmlById {
     }
 }
 
+function Get-Global($Name) {
+    $events = Get-Variable -Name $Name -Scope Global -ErrorAction SilentlyContinue
+    if ($events -eq $null){
+        return $null
+    }
+    return $events.Value
+}
+
+function Set-Global($Name,$Value) {
+    Set-Variable -Name $Name -Scope Global -Value $Value    
+}
+
+Add-Type -TypeDefinition @'
+public class DelayedFileWatcherEventArgs : System.EventArgs
+{
+    public string[] Files { get; private set; }
+
+    public DelayedFileWatcherEventArgs(string[] files)
+    {
+        this.Files = files;
+    }
+}
+
+public class DelayedFileWatcher
+{
+    private readonly System.Timers.Timer _timer;
+    private readonly System.Collections.Generic.List<string> _changedFiles = new System.Collections.Generic.List<string>();
+
+    public DelayedFileWatcher(string path, int interval = 500)
+    {
+        var watcher = new System.IO.FileSystemWatcher
+        {
+            Path = path,
+            IncludeSubdirectories = true,
+            EnableRaisingEvents = true
+        };
+        watcher.Changed += OnWatcherChanged;
+
+        _timer = new System.Timers.Timer
+        {
+            Interval = interval,
+            AutoReset = false
+        };
+        _timer.Elapsed += OnTimerOnElapsed;
+    }
+
+    private void OnWatcherChanged(object sender, System.IO.FileSystemEventArgs e)
+    {
+        string file = e.FullPath;
+        if (!_changedFiles.Contains(file))
+            _changedFiles.Add(file);
+        _timer.Stop();
+        _timer.Start();
+    }
+
+    private void OnTimerOnElapsed(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        var changedFiles = _changedFiles.ToArray();
+        _changedFiles.Clear();
+        if (Changed != null)
+        {
+            Changed(this, new DelayedFileWatcherEventArgs(changedFiles));
+        }
+    }
+
+    public event System.EventHandler<DelayedFileWatcherEventArgs> Changed;
+}
+'@
+
+<#
+Note that in the $Action script block:
+- $Path will be avaliable through the $event.MessageData property, or the global valiable through (Get-Global -Name "MyName").Path
+- The actual changed files can be accessed through the $eventArgs.Files property
+#>
+function Start-FileWatch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [Parameter(Mandatory=$true)]
+        [string]$Name,
+        [Parameter(Mandatory=$true)]
+        [ScriptBlock]$Action
+
+    )
+    Stop-FileWatch -Name $Name
+    $watcher = New-Object DelayedFileWatcher $Path
+    $changed = Register-ObjectEvent $watcher "Changed" -Action $Action -MessageData $Path
+
+    Write-Output "Watching $Path"
+    
+    Set-Global -Name $Name -Value @{
+        ChangedId = $changed.Id
+        Path = $Path
+    }
+}
+
+function Stop-FileWatch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Name
+    )
+    $events = Get-Global -Name $Name
+    if ($events -eq $null) {
+        return
+    }
+    Unregister-Event $events.ChangedId -ErrorAction SilentlyContinue
+    Write-Output "Stoped watching $($events.Path)"
+    Set-Global -Name $Name -Value $null
+}
+
+function Start-PesterWatch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+    Start-FileWatch -Path $Path -Name "PesterWatch" -Action {
+        Write-Host "Detected changed files: $($eventArgs.Files)"
+        Invoke-Pester -Path $event.MessageData
+    }
+}
+
+function Stop-PesterWatch {
+    [CmdletBinding()]
+    param()
+    Stop-FileWatch -Name "PesterWatch"
+}
+
+#Start-PesterWatch -Path C:\dev\PowerShell\Outlook -Verbose
 #Read-Html "http://www.blocket.se/orebro/Hemnes_sanggavel_2_st_90_sangar_59591317.htm?ca=8&amp;w=1" |
 #    Select-HtmlById -Id main_image| Convert-HtmlNode class,id | Format-Table -Wrap
 #Install-ScriptInUserModule -Path C:\Mippel\PowerShell\Utils -Verbose
