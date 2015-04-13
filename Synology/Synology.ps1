@@ -1,12 +1,13 @@
 ﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Get-Movies{
+function Get-Movies {
     param(
         [Parameter(Mandatory=$true)]
         [string]$Path
     )
-    return Get-ChildItem $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse
+    return Get-ChildItem $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse |
+        where { -not ($_.Mode -match "d") }
 }
 
 function Get-SrtPath([string]$Path,[IO.FileInfo]$File) {
