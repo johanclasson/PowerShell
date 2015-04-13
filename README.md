@@ -5,7 +5,20 @@ PowerShell modules and scripts for automation of my everyday life.
 * [SQLite PowerShell Provider](https://psqlite.codeplex.com/) - So that the persistent store can be used to save for example credentials or command history.
 
 ## Get started
-Copy the dependent modules to your module folder, preferably the one returned by ```$env:PSModulePath.Split(';')[0]```. Then install the PowerShell modules by running the following:
+Copy the dependent modules to your module folder, preferably by:
+```
+#PSGet
+(new-object Net.WebClient).DownloadString("http://psget.net/GetPsGet.ps1") | iex
+Install-Module Pester
+#Code Plex
+Invoke-WebRequest "https://psqlite.codeplex.com/downloads/get/405083" -OutFile tmp.zip
+gi .\tmp.zip | %{ [System.IO.Compression.ZipFile]::ExtractToDirectory($_.FullName, $_.Directory.FullName) }
+mi .\SQLite $env:PSModulePath.Split(';')[0]
+rm .\tmp.zip
+
+```
+
+Then install the PowerShell modules by running the following:
 ```
 cd C:\PathToRepo\PowerShell
 . .\Utils\Utils.ps1
