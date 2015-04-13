@@ -265,72 +265,75 @@ function Select-HtmlById {
     }
 }
 
-function Get-Global($Name) {
-    $events = Get-Variable -Name $Name -Scope Global -ErrorAction SilentlyContinue
-    if ($events -eq $null){
-        return $null
-    }
-    return $events.Value
-}
-
-function Set-Global($Name,$Value) {
-    Set-Variable -Name $Name -Scope Global -Value $Value    
-}
-
 Add-Type -TypeDefinition @'
-public class DelayedFileWatcherEventArgs : System.EventArgs
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Timers;
+
+namespace Utils
 {
-    public string[] Files { get; private set; }
-
-    public DelayedFileWatcherEventArgs(string[] files)
+    public class DelayedFileWatcherEventArgs : EventArgs
     {
-        this.Files = files;
-    }
-}
-
-public class DelayedFileWatcher
-{
-    private readonly System.Timers.Timer _timer;
-    private readonly System.Collections.Generic.List<string> _changedFiles = new System.Collections.Generic.List<string>();
-
-    public DelayedFileWatcher(string path, int interval = 500)
-    {
-        var watcher = new System.IO.FileSystemWatcher
+        public DelayedFileWatcherEventArgs(string[] files)
         {
-            Path = path,
-            IncludeSubdirectories = true,
-            EnableRaisingEvents = true
-        };
-        watcher.Changed += OnWatcherChanged;
-
-        _timer = new System.Timers.Timer
-        {
-            Interval = interval,
-            AutoReset = false
-        };
-        _timer.Elapsed += OnTimerOnElapsed;
-    }
-
-    private void OnWatcherChanged(object sender, System.IO.FileSystemEventArgs e)
-    {
-        string file = e.FullPath;
-        if (!_changedFiles.Contains(file))
-            _changedFiles.Add(file);
-        _timer.Stop();
-        _timer.Start();
-    }
-
-    private void OnTimerOnElapsed(object sender, System.Timers.ElapsedEventArgs e)
-    {
-        var changedFiles = _changedFiles.ToArray();
-        _changedFiles.Clear();
-        if (Changed != null)
-        {
-            Changed(this, new DelayedFileWatcherEventArgs(changedFiles));
+            Files = files;
         }
+
+        public string[] Files { get; private set; }
     }
 
-    public event System.EventHandler<DelayedFileWatcherEventArgs> Changed;
+    public class DelayedFileWatcher
+    {
+        private readonly List<string> _changedFiles = new List<string>();
+        private readonly string _exclude;
+        private readonly Timer _timer;
+
+        public DelayedFileWatcher(string path, string exclude = "", int interval = 500)
+        {
+            _exclude = exclude.ToLower();
+            var watcher = new FileSystemWatcher
+            {
+                Path = path,
+                IncludeSubdirectories = true,
+                EnableRaisingEvents = true
+            };
+            watcher.Changed += OnWatcherChanged;
+
+            _timer = new Timer
+            {
+                Interval = interval,
+                AutoReset = false
+            };
+            _timer.Elapsed += OnTimerOnElapsed;
+        }
+
+        private void OnWatcherChanged(object sender, FileSystemEventArgs e)
+        {
+            string file = e.FullPath;
+            if (!string.IsNullOrEmpty(_exclude) && file.ToLower().Contains(_exclude))
+                return;
+            if (!_changedFiles.Contains(file))
+                _changedFiles.Add(file);
+            _timer.Stop();
+            _timer.Start();
+        }
+
+        private void OnTimerOnElapsed(object sender, ElapsedEventArgs e)
+        {
+            if (!_changedFiles.Any())
+                return;
+            string[] changedFiles = _changedFiles.ToArray();
+            _changedFiles.Clear();
+            if (Changed != null)
+            {
+                Changed(this, new DelayedFileWatcherEventArgs(changedFiles));
+            }
+        }
+
+        public event EventHandler<DelayedFileWatcherEventArgs> Changed;
+    }
 }
 '@
 
@@ -345,19 +348,19 @@ function Start-FileWatch {
         [Parameter(Mandatory=$true)]
         [string]$Path,
         [Parameter(Mandatory=$true)]
-        [string]$Name,
-        [Parameter(Mandatory=$true)]
-        [ScriptBlock]$Action
-
+        [ScriptBlock]$Action,
+        [string]$Exclude = "",
+        [int]$Interval = 500
     )
-    Stop-FileWatch -Name $Name
-    $watcher = New-Object DelayedFileWatcher $Path
+    $Path = Resolve-Path $Path
+    $watcher = New-Object Utils.DelayedFileWatcher($Path,$Exclude,$Interval)
     $changed = Register-ObjectEvent $watcher "Changed" -Action $Action -MessageData $Path
 
-    Write-Output "Watching $Path"
+    Write-Host "Watching $Path"
     
-    Set-Global -Name $Name -Value @{
-        ChangedId = $changed.Id
+    return [PSCustomObject]@{
+        Id = $changed.Id
+        SourceIdentifier = $changed.Name
         Path = $Path
     }
 }
@@ -365,16 +368,27 @@ function Start-FileWatch {
 function Stop-FileWatch {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$Name
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
+        [int]$Id,
+        [Parameter(Mandatory=$false,ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
+        [string]$Path
     )
-    $events = Get-Global -Name $Name
-    if ($events -eq $null) {
-        return
+    Process {
+        $jobs = (Get-Job) | %{ $_.Id }
+        if ($jobs -contains $Id) {
+            Write-Verbose "removing job $Id"
+            Stop-Job -Id $Id
+            Remove-Job -Id $Id
+        }
+        $subscriptions = (Get-EventSubscriber -Force) | %{ $_.SubscriptionId }
+        if ($subscriptions -contains $Id) { #TODO: Is subscriptions really an int? A string?
+            Write-Verbose "Unregistering event $Id"
+            Unregister-Event $Id #Hangs here - Deadlock!
+        }
+        if (-not ([string]::IsNullOrEmpty($Path))) {
+            Write-Output "Stoped watching $Path"        
+        }
     }
-    Unregister-Event $events.ChangedId -ErrorAction SilentlyContinue
-    Write-Output "Stoped watching $($events.Path)"
-    Set-Global -Name $Name -Value $null
 }
 
 function Start-PesterWatch {
@@ -383,16 +397,10 @@ function Start-PesterWatch {
         [Parameter(Mandatory=$true)]
         [string]$Path
     )
-    Start-FileWatch -Path $Path -Name "PesterWatch" -Action {
+    return Start-FileWatch -Path $Path -Exclude "\.git" -Action {
         Write-Host "Detected changed files: $($eventArgs.Files)"
         Invoke-Pester -Path $event.MessageData
     }
-}
-
-function Stop-PesterWatch {
-    [CmdletBinding()]
-    param()
-    Stop-FileWatch -Name "PesterWatch"
 }
 
 #Start-PesterWatch -Path C:\dev\PowerShell\Outlook -Verbose
