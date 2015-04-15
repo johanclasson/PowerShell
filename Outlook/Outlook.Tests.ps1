@@ -6,6 +6,15 @@ function Is-Equal($a, $b) {
     return @(Compare-Object -ReferenceObject $a -DifferenceObject $b -PassThru).Length -eq 0
 }
 
+function Have-AnyGotPropertyValue($x, $propery, $value) {
+    $x | select -ExpandProperty $propery | foreach {
+        if ($_ -eq $value) {
+            return $true
+        }
+    }
+    return $false
+}
+
 Describe "Outlook" {
 
     Context "Mail exists" {
@@ -15,9 +24,10 @@ Describe "Outlook" {
             Mock Save-ForwardedMail {}
             Mock Get-Email {
                 $mails = @()
-                $mails += [PsCustomObject]@{EntryId="abc123";Title="Test title 1"}
-                $mails += [PsCustomObject]@{EntryId="def456";Title="Test title 2"}
-                $mails += [PsCustomObject]@{EntryId="ghi789";Title="Test title 3"}
+                $mails += [PsCustomObject]@{EntryId="abc123";Subject="Test title 1";MessageClass="IPM.Note"}
+                $mails += [PsCustomObject]@{EntryId="def456";Subject="Test title 2";MessageClass="IPM.Note"}
+                $mails += [PsCustomObject]@{EntryId="ghi789";Subject="Test title 3";MessageClass="IPM.Note"}
+                $mails += [PsCustomObject]@{EntryId="jkl012";Subject="Test title 4";MessageClass="IPM.Schedule.Meeting.Request"}
                 return $mails
             }
             Mock Is-MailForwarded { 
@@ -35,8 +45,12 @@ Describe "Outlook" {
             Assert-MockCalled Forward-Mail -ParameterFilter { $Prefix -eq "Test Prefix" }
         }
 
+        It "does not forward meeting requests" {
+            Assert-MockCalled Forward-Mail -ParameterFilter { -not (Have-AnyGotPropertyValue $Mails "MessageClass" "IPM.Schedule.Meeting.Request") }
+        }
+
         It "forwards mail with the correct content" {
-            Assert-MockCalled Forward-Mail -ParameterFilter { Is-Equal $Mails.Title "Test title 1","Test title 3" } 
+            Assert-MockCalled Forward-Mail -ParameterFilter { Is-Equal $Mails.Subject "Test title 1","Test title 3" } 
         }
 
         It "gets email that has been recievied within 24h" {

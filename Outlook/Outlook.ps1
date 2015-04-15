@@ -24,7 +24,7 @@ function Get-NotForwardedMail {
     $mails = Get-Email -RestrictFilter $restrictFilter |
         sort ReceivedTime
     return $mails | ?{
-        -not (Is-MailForwarded -EntryID $_.EntryID)
+        -not (Is-MailForwarded -EntryID $_.EntryID) -and $_.MessageClass -eq "IPM.Note"
     }
 }
 
@@ -71,7 +71,7 @@ function Forward-Mail {
         $senderName = $_.SenderName
         $subject = $_.Subject
         $f = $_.Forward()
-        $f.To = $To
+        $f.Recipients.Add($To) | Out-Null
         $f.Subject = "$($Prefix): ($senderName) $subject"
         Write-Verbose "Sending '$($f.Subject)' to $To"
         $f.Send()
