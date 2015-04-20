@@ -50,7 +50,7 @@ function Install-ScriptInUserModule {
         $newFilePath = Join-Path -Path $moduleTargetPath "$ModuleName.psm1"
         Copy-Item $filePath $newFilePath
         $allFilesSource = Join-Path $Path "*"
-        Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile,$filter,"*.Tests.ps1"
+        Copy-Item $allFilesSource $moduleTargetPath -Exclude $expectedModuleFile,$filter,"*.Tests.ps1" -Recurse -Force
         Write-Verbose "Copied $Path to $moduleTargetPath"
     }
 }
@@ -265,77 +265,18 @@ function Select-HtmlById {
     }
 }
 
-Add-Type -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Timers;
-
-namespace Utils
-{
-    public class DelayedFileWatcherEventArgs : EventArgs
-    {
-        public DelayedFileWatcherEventArgs(string[] files)
-        {
-            Files = files;
-        }
-
-        public string[] Files { get; private set; }
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+function Get-ModulePath($SubPath) {
+    $module = Get-Module Utils
+    if ($module -eq $null) {
+        $path = $here
+        Write-Warning "Using local path: $path"
     }
-
-    public class DelayedFileWatcher
-    {
-        private readonly List<string> _changedFiles = new List<string>();
-        private readonly string _exclude;
-        private readonly Timer _timer;
-
-        public DelayedFileWatcher(string path, string exclude = "", int interval = 500)
-        {
-            _exclude = exclude.ToLower();
-            var watcher = new FileSystemWatcher
-            {
-                Path = path,
-                IncludeSubdirectories = true,
-                EnableRaisingEvents = true
-            };
-            watcher.Changed += OnWatcherChanged;
-
-            _timer = new Timer
-            {
-                Interval = interval,
-                AutoReset = false
-            };
-            _timer.Elapsed += OnTimerOnElapsed;
-        }
-
-        private void OnWatcherChanged(object sender, FileSystemEventArgs e)
-        {
-            string file = e.FullPath;
-            if (!string.IsNullOrEmpty(_exclude) && file.ToLower().Contains(_exclude))
-                return;
-            if (!_changedFiles.Contains(file))
-                _changedFiles.Add(file);
-            _timer.Stop();
-            _timer.Start();
-        }
-
-        private void OnTimerOnElapsed(object sender, ElapsedEventArgs e)
-        {
-            if (!_changedFiles.Any())
-                return;
-            string[] changedFiles = _changedFiles.ToArray();
-            _changedFiles.Clear();
-            if (Changed != null)
-            {
-                Changed(this, new DelayedFileWatcherEventArgs(changedFiles));
-            }
-        }
-
-        public event EventHandler<DelayedFileWatcherEventArgs> Changed;
+    else {
+        $path = $module.ModuleBase
     }
+    return Join-Path $path $SubPath
 }
-'@
 
 <#
 Note that in the $Action script block:
@@ -353,6 +294,7 @@ function Start-FileWatch {
         [int]$Interval = 500
     )
     $Path = Resolve-Path $Path
+    Add-CSharpType (Get-ModulePath "Source\Utils.sln")
     $watcher = New-Object Utils.DelayedFileWatcher($Path,$Exclude,$Interval)
     $changed = Register-ObjectEvent $watcher "Changed" -Action $Action -MessageData $Path
 
@@ -398,9 +340,98 @@ function Start-PesterWatch {
         [string]$Path
     )
     return Start-FileWatch -Path $Path -Exclude "\.git" -Action {
+        Set-Variable -Name "PesterWatchRunning" -Value $true -Scope Global
         Write-Host "Detected changed files: $($eventArgs.Files)"
         Invoke-Pester -Path $event.MessageData
+        Set-Variable -Name "PesterWatchRunning" -Value $false -Scope Global
     }
+}
+
+function Get-CsFiles($SlnPath) {
+    function Get-FilesFrom($content, $fileSuffix) {
+        $pattern = """(\w|\\|\s)*\.$fileSuffix"""
+        return $content -match $pattern | %{
+            $_ -match $pattern | Out-Null
+            $Matches[0].Trim('"')
+        }
+    }
+    $content = Get-Content -Path $SlnPath
+    $dir = (Get-Item $SlnPath).Directory
+    $csprojFiles = Get-FilesFrom $content "csproj" |
+        %{ Join-Path $dir $_ } |
+        where {
+            $exist = Test-Path $_
+            if (-not $exist) { Write-Warning "$_ does not exist" }
+            return $exist
+        }
+    return $csprojFiles | %{
+        $csProjDir = (Get-Item $_).Directory
+        $content = Get-Content $_
+        $csFiles = Get-FilesFrom $content "cs" |
+            %{ Join-Path $csProjDir $_ } |
+            where {
+                $exist = Test-Path $_
+                if (-not $exist) { Write-Warning "$_ does not exist" }
+                else {
+                    if ((Get-Item  $_).Name -eq "AssemblyInfo.cs") {
+                        return $false
+                    }
+                }
+                return $exist
+            }
+        return $csFiles
+    }
+}
+
+function Get-TypeDefinition($CsFiles) {
+    $usingLines = @()
+    $codeLines = @()
+    @($CsFiles | %{ Get-Content $_ }) | foreach {
+        if ($_ -match "^\s*using .*;\s*$") {
+            $usingLines += $_.Trim()
+        }
+        else {
+            $codeLines += $_
+        }
+    }
+    return [string]::Join([System.Environment]::NewLine, ($usingLines | select -Unique)) +
+        [System.Environment]::NewLine + 
+        [string]::Join([environment]::NewLine, $codeLines)
+}
+
+function Get-SourceCode {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SlnPath
+    )
+
+    $csFiles = Get-CsFiles $SlnPath
+    $typeDefinition = Get-TypeDefinition $csFiles
+
+    return [PsCustomObject]@{
+        TypeDefinition = $typeDefinition
+        ReferencedAssemblies = ""
+    }
+}
+
+function Add-CSharpType {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SlnPath
+    )
+    $SlnPath = Resolve-Path $SlnPath
+    $name = $SlnPath -replace "\W",""
+    $variable = Get-Variable $name -Scope Global -ErrorAction SilentlyContinue
+    if ($variable -ne $null) {
+        Write-Verbose "Type with name $name already loaded"
+        return
+    }
+    Set-Variable $name $true -Scope Global
+    $sourceCode = Get-SourceCode -SlnPath $SlnPath
+    Write-Verbose "Loading type with name $name"
+    Add-Type -TypeDefinition $sourceCode.TypeDefinition #-ReferencedAssemblies $sourceCode.ReferencedAssemblies
+
 }
 
 #Start-PesterWatch -Path C:\dev\PowerShell\Outlook -Verbose
