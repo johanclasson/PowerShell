@@ -21,7 +21,7 @@ rm .\tmp.zip
 Then install the PowerShell modules by running the following:
 ```
 cd C:\PathToRepo\PowerShell
-. .\Utils\Utils.ps1
+. .\Utils\Develop.ps1
 Install-AllSciptsInUserModule . -Verbose
 ```
 
