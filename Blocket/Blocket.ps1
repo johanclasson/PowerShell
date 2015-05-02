@@ -14,11 +14,8 @@ function Get-BlocketSearchHits([string]$Query, [string]$Category, [string]$Area)
 
 function Get-SearchHitContent([string]$Uri) {
     $html = Read-Html $Uri
-    $images = $html | Select-HtmlLink | Get-HtmlAttribute href | where { $_ -match "jpg$" }
-    if ($images -eq $null) { # If there is only one image in the ad, no thumbnail links are shown
-        $images = $html | Select-HtmlById main_image | Get-HtmlAttribute src
-    }
-    $title = $html | Select-HtmlByXPath "//h2" | select -First 1 | %{ $_.innerText.Trim() }
+    $images = $html | Select-HtmlByXPath '//img[@data-src]' | Get-HtmlAttribute 'data-src'
+    $title = $html | Select-HtmlByXPath "//h1" | select -First 1 | %{ $_.innerText.Trim() }
     $text = $html | Select-HtmlByClass body | foreach { 
         $_.innerHtml.Replace("<!-- Info page -->","").Trim()
     }
@@ -27,25 +24,30 @@ function Get-SearchHitContent([string]$Uri) {
     return New-Object PSObject -Property @{ 'images'=$images; 'title'=$title; 'text'=$text; 'price'="$price"; 'uri'=$Uri }
 }
 
+# Mocked
 function Test-Hit($Uri) {
     @(Get-ChildItem sqlite:\BlocketSearchHit -Filter "uri='$Uri'").Length -gt 0
 }
 
+# Mocked
 function Test-Query($Query) {
     @(Get-ChildItem sqlite:\BlocketSearchQuery -Filter "text='$Query'").Length -gt 0
 }
 
+# Mocked
 function Add-Hit($Uri) {
     New-Item sqlite:\BlocketSearchHit -uri $Uri | Out-Null
 }
 
+# Mocked
 function Add-Query($Query) {
     New-Item sqlite:\BlocketSearchQuery -text $Query | Out-Null
 }
 
 function Format-Body {
+    [OutputType('System.String')]
     param(
-        [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
+        [Parameter(ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
         [string[]]$Images,
         [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
         [string]$Title,
@@ -103,7 +105,7 @@ function Send-BlocketSearchHitsMail {
         $newHits | foreach {
             $hit = $_
             $content = Get-SearchHitContent $hit
-            $body = $content | Format-Body
+            [string]$body = $content | Format-Body
             $subject = "Blocket: $($content.Title) - $($content.Price)"
             Send-Gmail -EmailFrom $EmailFrom -EmailTo $EmailTo -Subject $subject -Body $body -Html
             Write-Log "Email with subject '$subject' to $EmailTo"
