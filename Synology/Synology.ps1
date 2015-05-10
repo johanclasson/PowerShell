@@ -6,12 +6,60 @@ function Get-Movies {
         [Parameter(Mandatory=$true)]
         [string]$Path
     )
-    return Get-ChildItem $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse |
+    return Get-ChildItem -LiteralPath $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse |
         where { -not ($_.Mode -match "d") }
 }
 
-function Get-SrtPath([string]$Path,[IO.FileInfo]$File) {
-    return Join-Path $Path -ChildPath "$($File.BaseName).srt"
+function Get-SrtPath {
+    param(
+        [string]$Directory,
+        [string]$BaseName
+    )
+    Process {
+        return Join-Path $Directory -ChildPath "$BaseName.srt"
+    }
+}
+
+function Convert-MoviesFilenameToParts {
+    param(
+        [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
+        [IO.FileInfo]$File
+    )
+    Process {
+        $fullName = $File.FullName
+        if (!($fullName -match "[sS]\d\d[eE]\d\d")) {
+            return
+        }
+        if ($fullName.ToLower().Contains("sample")) {
+            return
+        }
+        $marker = $Matches[0]
+        $name = $File.BaseName
+        if (-not ($name -match $marker) ) {
+            if (-not ($fullName -match "([^\[\\]+)$marker([^\[\\]+)")) {
+                Write-Error "$fullName did not match the marker containing $marker"
+            }
+            $name = $Matches[0]
+        }
+        if ($name.EndsWith($File.Extension)) {
+            $name = $name.Substring(0, $name.Length - $File.Extension.Length)
+        }
+        $season = $marker.Substring(0,3).ToUpper()
+        $indexOfMarker = $name.IndexOf($marker)
+        $indexAfterDash = $name.Substring(0,$indexOfMarker).LastIndexOf('\') + 1
+        $length = $indexOfMarker - $indexAfterDash
+        $series = $name.Substring($indexAfterDash,$length).Replace("."," ").Trim(' ','-')
+        if ($series -match "20\d\d$") {
+            $series = $series.Replace($Matches[0],"").Trim(' ','-')
+        }
+        $series = (Get-Culture).TextInfo.ToTitleCase($series)
+        return New-Object psobject -Property @{
+            'Series'=$series;
+            'Season'=$season;
+            'File'=$File;
+            'Name'=$name
+        }
+    }
 }
 
 function Move-Movie {
@@ -23,44 +71,14 @@ function Move-Movie {
         [string]$Destination,
         [switch]$TidyUp
     )
+    $dirsToTidyUp = New-Object System.Collections.ArrayList
 
-    function Convert-MoviesFilenameToParts {
-        param(
-            [Parameter(Mandatory=$True, ValueFromPipeline=$True)]
-            [IO.FileInfo]$File
-        )
-        Process {
-            $name = $File.FullName
-            if (!($name -match "[sS]\d\d[eE]\d\d")) {
-                return
-            }
-            if ($name.ToLower().Contains("sample")) {
-                return
-            }
-            $marker = $Matches[0]
-            $season = $marker.Substring(0,3).ToUpper()
-            $indexOfMarker = $name.IndexOf($marker)
-            $indexAfterDash = $name.Substring(0,$indexOfMarker).LastIndexOf('\') + 1
-            $length = $indexOfMarker - $indexAfterDash
-            $series = $name.Substring($indexAfterDash,$length).Replace("."," ").Trim()
-            if ($series -match "20\d\d$") {
-                $series = $series.Replace($Matches[0],"").Trim()
-            }
-            $series = (Get-Culture).TextInfo.ToTitleCase($series)
-            return New-Object psobject -Property @{
-                'Series'=$series;
-                'Season'=$season;
-                'File'=$File
-            }
-        }
-    }
-
-    function Tidy-UpFolder([IO.DirectoryInfo]$Dir) {
-        $fileDirIsRootDir = $Dir.FullName -eq (Get-Item $Path).FullName
+    function Tidy-UpFolder([string]$DirPath) {
+        $fileDirIsRootDir = $DirPath -eq (Get-Item -LiteralPath $Path).FullName
         if ($fileDirIsRootDir) { # Do not tamper with this!
             return
         }
-        $items = Get-ChildItem -LiteralPath $Dir -Force | Where-Object { -not $_.Name.ToLower().EndsWith(".srt") }
+        $items = Get-ChildItem -LiteralPath $DirPath -Force
         $items | foreach { # Force includes hidden items such as thumbs.db
             if ($_.PSIsContainer) {
                 if ($_.Name.ToLower().Contains("sample")) {
@@ -76,13 +94,22 @@ function Move-Movie {
                 }
             }
         }
-        $fileCount = @((Get-ChildItem -LiteralPath $Dir -Force)).Count
+        $fileCount =  @(Get-ChildItem -LiteralPath $DirPath -Force).Count
         if ($fileCount -eq 0) {
-            Remove-Item -LiteralPath $Dir
-            Write-Verbose "Deleted empty folder: $Dir"
+            $parentPath = Split-Path $DirPath -Parent
+            Remove-Item -LiteralPath $DirPath
+            Write-Verbose "Deleted empty folder: $DirPath"
+            Tidy-UpFolder -DirPath $parentPath
         }
     }
 
+	function Move-ItemIfPresent([string]$Source, [string]$Destination) {
+        if (Test-Path -LiteralPath $Source) {
+            Move-Item -LiteralPath $Source -Destination $Destination
+            Write-Verbose "Moved $Source to $Destination"
+        }	
+	}
+	
     function Move-MovieInternal {
         [CmdletBinding()]
         param(
@@ -92,32 +119,38 @@ function Move-Movie {
             [string]$Season,
             [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
             [string]$Series,
+            [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
+            [string]$Name,
             [Parameter(Mandatory=$True)]
             [string]$Destination
         )
         Process {
             $destSubPath = Join-Path $Destination -ChildPath $Series | Join-Path -ChildPath $Season
+            $destinationPath = (Join-Path $destSubPath "$Name$($File.Extension)")
+            $srtDestinationPath = Get-SrtPath -Directory $destSubPath -BaseName $Name
+            $srtSourcePath1 = Get-SrtPath -Directory $File.Directory -BaseName $Name
+            $srtSourcePath2 = Get-SrtPath -Directory $File.Directory -BaseName $File.BaseName
             #Create folder
             if (!(Test-Path -LiteralPath $destSubPath)) {
                 New-Item $destSubPath -ItemType Dir | Out-Null
                 Write-Verbose "Created folder $destSubPath"
             }
             #Move subtitle
-            $subtitlePath = Get-SrtPath -Path $File.Directory -File $File
-            if (-not (Test-Path -LiteralPath $subtitlePath)) {
-                Invoke-DownloadSubtitle -Path $File.FullName
+            if (-not (Test-Path -LiteralPath $srtSourcePath1) -and -not (Test-Path -LiteralPath $srtSourcePath2)) {
+                Invoke-DownloadSubtitle -Destination $File.Directory -Name $Name
             }
-            if (Test-Path -LiteralPath $subtitlePath) {
-                Move-Item -LiteralPath $subtitlePath -Destination $destSubPath
-                Write-Verbose "Moved $subtitlePath to $destSubPath"
-            }
+			Move-ItemIfPresent $srtSourcePath1 $srtDestinationPath
+			Move-ItemIfPresent $srtSourcePath2 $srtDestinationPath
             #Move movie
-            Move-Item -LiteralPath $File -Destination $destSubPath -Force
+            Move-Item -LiteralPath $File -Destination $destinationPath -Force
             Write-Verbose "Moved $File to $destSubPath"
             #Tidy up folder
-            if ($TidyUp) {
-                Tidy-UpFolder -Dir $File.Directory
+            if ($TidyUp -and -not ($dirsToTidyUp -contains $File.Directory.FullName)) {
+                $dirsToTidyUp.Add($File.Directory.FullName) | Out-Null
             }
+        }
+        End {
+            $dirsToTidyUp | %{ Tidy-UpFolder -DirPath $_ }
         }
     }
 
@@ -132,7 +165,9 @@ function Move-Movie {
                     Where-Object { -not ($_.Name -eq "Thumbs.db")}).Count -eq 0
             } | foreach {
                 $deleteMe = Join-Path $_.FullName -ChildPath "Thumbs.db"
-                Remove-Item -LiteralPath $deleteMe -Force
+                if (Test-Path $deleteMe) {
+                    Remove-Item -LiteralPath $deleteMe -Force
+                }
                 return $_
             } | Remove-Item
     }
@@ -144,12 +179,12 @@ function Move-Movie {
 function Invoke-DownloadSubtitle {
     [CmdletBinding()]
     param(
-        [string]$Path,
+        [string]$Name,
+        [string]$Destination,
         [string]$Language = "English"
     )
 
-    Write-Verbose "Start download subtitle for $Path"
-    [IO.FileInfo]$File = Get-Item -LiteralPath $Path
+    Write-Verbose "Start download subtitle for $Name"
     
     function Invoke-SubsceneRequest([string]$Path, [string]$OutFile) {
         if ([string]::IsNullOrEmpty($Path)) {
@@ -183,7 +218,7 @@ function Invoke-DownloadSubtitle {
         Remove-Item -Path $path -Recurse -Force
     }
 
-    function DownloadAndCopy-SrtFileToDestination([string]$path) {
+    function DownloadAndCopy-SrtFileToDestination([string]$path, [string]$downloadLink) {
         $zipPath = (Join-Path $path -ChildPath "tmp.zip")
         Invoke-SubsceneRequest -Path $downloadLink -OutFile $zipPath
 
@@ -193,12 +228,12 @@ function Invoke-DownloadSubtitle {
         $srtFile = Get-ChildItem $path -Filter "*.srt" | select -First 1
         if ($srtFile -eq $null) {
             Write-Warning "The downloaded file did not contain any srt-file"
+            return $null
         }
-        else {
-            $targetPath = Join-Path $File.Directory.FullName -ChildPath "$($File.BaseName).srt"
-            Copy-Item $srtFile.FullName $targetPath
-            Write-Verbose "Downloaded subtitle $targetPath"
-        }
+        $targetPath = Join-Path $Destination -ChildPath "$name.srt"
+        Copy-Item $srtFile.FullName $targetPath
+        Write-Verbose "Downloaded subtitle $targetPath"
+        return $targetPath
     }
 
     function Save-MissingSubtitle([string]$Text) {
@@ -210,16 +245,15 @@ function Invoke-DownloadSubtitle {
     }
 
     # Search for subtitle
-    $name = $File.BaseName
-    $desiredLinkText = "$Language $name"
+    $desiredLinkText = "$Language $Name"
     if (Is-SubtitleMissing $desiredLinkText) {
-        Write-Warning "Could not previously find any $($Language.ToLower()) subtitles for $name"
+        Write-Warning "Could not previously find any $($Language.ToLower()) subtitles for $Name"
         return
     }
-    $result = Invoke-SubsceneRequest "/subtitles/release?q=$name"
-    $detailsUri =  Select-Link -Result $result -InnerText $desiredLinkText
+    $result = Invoke-SubsceneRequest "/subtitles/release?q=$Name"
+    $detailsUri = Select-Link -Result $result -InnerText $desiredLinkText
     if ([string]::IsNullOrEmpty($detailsUri)) {
-        Write-Warning "Could not find any $($Language.ToLower()) subtitles for $name"
+        Write-Warning "Could not find any $($Language.ToLower()) subtitles for $Name"
         Save-MissingSubtitle $desiredLinkText
         return
     }
@@ -234,7 +268,7 @@ function Invoke-DownloadSubtitle {
     $tempPath = ""
     try {
         $tempPath = Create-TempFolder
-        DownloadAndCopy-SrtFileToDestination $tempPath
+        return DownloadAndCopy-SrtFileToDestination $tempPath $downloadLink
     }
     catch {
         Write-Error "Something bad happened: $($_.Message)"
@@ -242,6 +276,7 @@ function Invoke-DownloadSubtitle {
     finally {
         Delete-Folder $tempPath
     }
+    return $null
 }
 
 function Get-MissingSubtitles {
@@ -251,20 +286,17 @@ function Get-MissingSubtitles {
         [string]$Path,
         [string]$Language = "English"
     )
-    $movies = Get-Movies -Path $Path
+    $movies = Get-Movies -Path $Path | Convert-MoviesFilenameToParts
     $movies | foreach {
-        $subtitlePath = Get-SrtPath -Path $_.Directory -File $_
+        $subtitlePath = Get-SrtPath -Directory $_.File.Directory -BaseName $_.File.BaseName
         if (-not(Test-Path -LiteralPath $subtitlePath)) {
-            Invoke-DownloadSubtitle -Path $_.FullName -Language $Language
+            $path = Invoke-DownloadSubtitle -Name $_.Name -Destination $_.File.Directory -Language $Language
+            if ($path -ne $null) {
+                Move-Item -LiteralPath $path -Destination $subtitlePath
+            }
         }
     }
 }
 
 # TODO: Recognize 4x07 format
 #Y:\TV-serier\Downton Abbey\Season 4
-
-#Invoke-DownloadSubtitle (Get-Item 'Y:\TV-serier\The 100\s02\The.100.S02E10.HDTV.x264-KILLERS.mp4')
-#Invoke-DownloadSubtitle (Get-Item 'Y:\TV-serier\The 100\s02\the.100.203.hdtv-lol.mp4')
-#Move-Movie -Path W:\ -Destination Y:\TV-serier -TidyUp -Verbose
-#Get-MissingSubtitles -Path "Y:\TV-serier\The 100\s02" -Verbose
-#Get-MissingSubtitles w:\ -Verbose
