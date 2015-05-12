@@ -291,12 +291,14 @@ function Get-MissingSubtitles {
         $subtitlePath = Get-SrtPath -Directory $_.File.Directory -BaseName $_.File.BaseName
         if (-not(Test-Path -LiteralPath $subtitlePath)) {
             $path = Invoke-DownloadSubtitle -Name $_.Name -Destination $_.File.Directory -Language $Language
-            if ($path -ne $null) {
+            if (-not [string]::IsNullOrEmpty($path)) {
                 Move-Item -LiteralPath $path -Destination $subtitlePath
             }
         }
     }
 }
+
+#Get-MissingSubtitles -Path w:\
 
 # TODO: Recognize 4x07 format
 #Y:\TV-serier\Downton Abbey\Season 4
