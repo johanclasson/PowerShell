@@ -194,7 +194,7 @@ select [DataSourceValues].[DataSourceValueLocalTimestamp] from [DataSourceValues
             "Last data source value was added {0:yyyy-MM-dd HH:mm:ss.fff}" -f $lastTime | Write-Verbose
             $aFewMinutesAgo = (Get-Date).AddMinutes(-1 * $LimitInMinutes)
             if ($lastTime -lt $aFewMinutesAgo) {
-                Log-Message ("Have not recieved any data source values since {0:yyyy-MM-dd HH:mm:ss.fff}, restarting services..." -f $lastTime)
+                Log-Message ("Have not received any data source values since {0:yyyy-MM-dd HH:mm:ss.fff}, restarting services..." -f $lastTime)
                 Restart-SwitchKing
                 Wait-UntilFirstDataSourceValue $lastTime
             }
