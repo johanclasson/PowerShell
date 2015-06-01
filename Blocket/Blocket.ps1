@@ -6,8 +6,12 @@ function Get-BlocketSearchHits([string]$Query, [string]$Category, [string]$Area)
         $Category = 0 # 2040 is furniture
     }
     if ([string]::IsNullOrEmpty($Area)) {
-        $Area = "orebro"
+        $Area = "orebro" # TODO: Fixa validering på alla områden, inkl. hela_sverige
     }
+    # TODO: Fixa möjlighet att söka närliggande
+    # w=1 => bara area
+    # w=2 => Närliggande
+    # w=3 => hela sverige
     $baseUri = "http://www.blocket.se/$($Area)?q=$($query.Trim())&cg=$Category&w=1&st=s&c=&ca=8&is=1&l=0&md=th"
     return Read-Html $baseUri | Select-HtmlByClass "item_link" | Get-HtmlAttribute href
 }
@@ -30,7 +34,7 @@ function Test-Hit($Uri) {
 }
 
 # Mocked
-function Test-Query($Query) {
+function Test-Query($Query) { # TODO: Här borde area också tas med
     @(Get-ChildItem sqlite:\BlocketSearchQuery -Filter "text='$Query'").Length -gt 0
 }
 
@@ -40,7 +44,7 @@ function Add-Hit($Uri) {
 }
 
 # Mocked
-function Add-Query($Query) {
+function Add-Query($Query) { # TODO: Här borde area också tas med
     New-Item sqlite:\BlocketSearchQuery -text $Query | Out-Null
 }
 
