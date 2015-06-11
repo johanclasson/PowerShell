@@ -67,8 +67,10 @@ I have had a number problems with `(Invoke-HtmlRequest ...).ParsedHtml` to searc
 * When scheduling, the html parsing sometimes made the script hang indefinitely
 
 Here comes [Html Agility Pack](https://htmlagilitypack.codeplex.com/) to the rescue. Fast, reliable, and quite powerful since it use XPath. It's simply awesome! For example, it was a relatively straightforward process using it for making this command to work:
+
 ```
 Import-Module Utils
 Read-Html "http://mysite.xyz" | Select-HtmlById myid | Get-HtmlAttribute href
 ```
+
 One odd thing though. The `myHtmlNode.Select(xpath)` of Html Agility Pack seams to return hits from the whole document and not only children of the node. Therefore, chaining commands like `Select-HtmlById myid | Select-HtmlImage` makes no sense. I you want to query for images under a tag with id myid, use the a complete XPath query instead. For example `Select-HtmlByXPath '//*[@id="myid"]//img'`.

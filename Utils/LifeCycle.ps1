@@ -115,7 +115,7 @@ function Install-AllSciptsInUserModule {
       [switch]$SkipDll
     )
     $modules = Get-ChildItem -Path $Path -Filter *.ps1 -Recurse |
-        %{ $_.Directory } |
+        %{ $_.Directory } | ?{-not ($_.FullName -match "\.") } |
         select -Unique
     if ($SkipDll) {
         $modules | Install-ScriptInUserModule -SkipDll
