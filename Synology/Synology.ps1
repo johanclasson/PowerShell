@@ -45,7 +45,7 @@ function Convert-MoviesFilenameToParts {
             $name = $name.Substring(0, $name.Length - $File.Extension.Length)
         }
         $season = $marker.Substring(0,3).ToUpper()
-        $indexOfMarker = $name.IndexOf($marker)
+        $indexOfMarker = $name.IndexOf($marker, [System.StringComparison]::CurrentCultureIgnoreCase)
         $indexAfterDash = $name.Substring(0,$indexOfMarker).LastIndexOf('\') + 1
         $length = $indexOfMarker - $indexAfterDash
         $series = $name.Substring($indexAfterDash,$length).Replace("."," ").Trim(' ','-')
@@ -298,7 +298,7 @@ function Get-MissingSubtitles {
     }
 }
 
-#Get-MissingSubtitles -Path w:\
+#Get-MissingSubtitles -Path w:\ -Verbose
 
 # TODO: Recognize 4x07 format
 #Y:\TV-serier\Downton Abbey\Season 4
