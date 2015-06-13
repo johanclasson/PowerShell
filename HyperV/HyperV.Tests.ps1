@@ -1,5 +1,5 @@
 ﻿$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$sut = (Split-Path -Leaf $MyInvocation.MyCommand.Path).Replace(".Tests.", ".")
+$sut = "HyperV-WorkaroundMountDiskImageProblem.ps1" #(Split-Path -Leaf $MyInvocation.MyCommand.Path).Replace(".Tests.", ".")
 . "$here\$sut"
 
 Describe "HyperV" {
@@ -25,7 +25,7 @@ Describe "HyperV" {
 			<DvdDrive path="TestDrive:\iso\dvd.iso" />
 			<DvdDrive path="TestDrive:\iso\dvd2.iso" />
 			<Vhd size="100GB" />
-			<Vhd filename="Extra stuff" size="7GB" />
+			<Vhd filename="ExtraStuff.vhdx" size="7GB" />
 		</VM>
 		<VM name="NewVMFromTemplate" switches="LocalComputer,ExternalEthernet" startupBytes="1GB" dynamicMemory="false" processorCount="2">
 			<DvdDrive path="TestDrive:\iso\dvd.iso" />
@@ -37,14 +37,14 @@ Describe "HyperV" {
                     <add key="__Password__" value="p@ssword" />
                 </ReplaceContent>
 			</CopyVhd>
-            <MoveVhd filename="Moved disk" path="TestDrive:\Templates\Copies\Templ*.vhdx" />
+            <MoveVhd filename="MovedDisk.vhdx" path="TestDrive:\Templates\Copies\Templ*.vhdx" />
 		</VM>
 		<VM name="VMWithoutDisks" />
         <VM name="AlreadyPresentVM" />
         <VM name="VMWithAlreadyPresentDisks">
-            <Vhd filename="AlreadyPresetDisk1" size="17GB" />
-            <CopyVhd filename="AlreadyPresetDisk2" path="TestDrive:\Templates\Template.vhdx" />
-            <MoveVhd filename="AlreadyPresetDisk3" path="TestDrive:\Templates\Copies\Templ*.vhdx" />
+            <Vhd filename="AlreadyPresetDisk1.vhdx" size="17GB" />
+            <CopyVhd filename="AlreadyPresetDisk2.vhdx" path="TestDrive:\Templates\Template.vhdx" />
+            <MoveVhd filename="AlreadyPresetDisk3.vhdx" path="TestDrive:\Templates\Copies\Templ*.vhdx" />
         </VM>
 	</VMs>
 </config>
@@ -65,7 +65,7 @@ Describe "HyperV" {
         Mock Add-VMNetworkAdapter {}
         Mock New-VHD {}
         Mock Add-VMHardDiskDrive { }
-        Mock Mount-VhdxAndGetLargestDriveLetter { return "TestDrive" }
+        Mock Mount-VhdxAndGetLargestDriveLetter { return "TestDrive:\" }
         Mock Dismount-DiskImage {}
         # Yes, I'm cheating by not testing this. But I was not able to get the pipelining between the Mocked Get- and Remove-* to work.
         Mock Get-VMDvdDrive { return @() }
@@ -133,10 +133,10 @@ __Password__
                                                                      $Path -eq "$root\BrandNewVM\BrandNewVM.vhdx" }
         }
         It "adds VHDs with custom name" {
-            Assert-MockCalled New-VHD -ParameterFilter { $Path -eq "$root\BrandNewVM\Extra stuff.vhdx" -and
+            Assert-MockCalled New-VHD -ParameterFilter { $Path -eq "$root\BrandNewVM\ExtraStuff.vhdx" -and
                                                          $SizeBytes -eq "7GB" }
             Assert-MockCalled Add-VMHardDiskDrive -ParameterFilter { $VMName -eq "BrandNewVM" -and
-                                                                     $Path -eq "$root\BrandNewVM\Extra stuff.vhdx" }
+                                                                     $Path -eq "$root\BrandNewVM\ExtraStuff.vhdx" }
         }
         It "adds copies of template vhds" {
             $copiedVhdxPath = "$root\NewVMFromTemplate\NewVMFromTemplate.vhdx"
@@ -146,12 +146,10 @@ __Password__
                                                                      $Path -eq $copiedVhdxPath }
         }
         It "replace stuff in unnatend.xml" {
-            $expectedContent = @"
-en-US
-*
-AAAAA-BBBBB-CCCCC-DDDDD-EEEEE
-p@ssword
-"@ -replace "`n","`r`n" # Sigh. Why do I have to change line endings?
+            $expectedContent = "en-US`r`n" + `
+                               "*`r`n" + `
+                               "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE`r`n" + `
+                               "p@ssword"
             $actualContent = Get-Content TestDrive:\Windows\Panther\unattended.xml -Raw
             $actualContent.Trim() | Should Be $expectedContent
             $copiedVhdxPath = "$root\NewVMFromTemplate\NewVMFromTemplate.vhdx"            
@@ -159,7 +157,7 @@ p@ssword
             Assert-MockCalled Dismount-DiskImage -ParameterFilter { $ImagePath -eq $copiedVhdxPath }
         }
         It "moves template vhds with whildcard" {
-            $movedVhdxPath = "$root\NewVMFromTemplate\Moved disk.vhdx"
+            $movedVhdxPath = "$root\NewVMFromTemplate\MovedDisk.vhdx"
             $movedVhdxPath | Should Exist
             Get-Content $movedVhdxPath | Should Be "Template Content"
             Assert-MockCalled Add-VMHardDiskDrive -Exactly -Times 1 -ParameterFilter { $VMName -eq "NewVMFromTemplate" -and
@@ -201,21 +199,12 @@ p@ssword
         Mock Remove-VMNetworkAdapter {}
         # Done with cheating...
 
-        It "checks if root path does not exist" {
-            $config = [xml]@"
-<config>
-	<VMs root="TestDrive:\NotExistingFolder">
-	</VMs>
-</config>
-"@
-            { New-VMFromConfig -Config $config -Verbose } | Should Throw "Cannot find root folder path 'TestDrive:\NotExistingFolder' because it does not exist."
-        }
         It "checks if VHD path does not exist" {
             $config = [xml]@"
 <config>
 	<VMs root="TestDrive:\">
          <VM name="DummyVM">
-            <CopyVhd filename="MissingDisk" path="TestDrive:\Templates\MissingTemplate.vhdx" />
+            <CopyVhd filename="MissingDisk.vhdx" path="TestDrive:\Templates\MissingTemplate.vhdx" />
         </VM>
 	</VMs>
 </config>
@@ -240,5 +229,42 @@ p@ssword
 "@
             New-VMFromConfig -Config $config -Verbose
         }
+    }
+    Context "New-VMFromConfig tidy up after move error" {
+        $config = [xml]@"
+<config>
+	<VMs root="$root">
+         <VM name="DummyVM">
+            <MoveVhd filename="MissingDisk.vhdx" path="TestDrive:\Templates\Template.vhdx">
+                <ReplaceContent pathRelativeRoot="Windows\Panther\unattended.xml">
+                    <add key="__Locale__" value="en-US" />
+                </ReplaceContent>
+            </MoveVhd>
+        </VM>
+	</VMs>
+</config>
+"@
+
+        Mock Get-VM { return $false }
+        Mock New-VM {}
+        # Yes, I'm cheating by not testing this. But I was not able to get the pipelining between the Mocked Get- and Remove-* to work.
+        Mock Get-VMDvdDrive { return @() }
+        Mock Remove-VMDvdDrive {}
+        Mock Get-VMNetworkAdapter { return @() }
+        Mock Remove-VMNetworkAdapter {}
+        Mock Mount-VhdxAndGetLargestDriveLetter { return "TestDrive:\" }
+        Mock Dismount-DiskImage {}
+        # Done with cheating...
+        Mock Get-Content { throw "Strange Error!" }
+        New-Item TestDrive:\Templates -ItemType Dir | Out-Null
+        "Template Content" | Out-File TestDrive:\Templates\Template.vhdx
+        
+        It "dismounts and moves back disk to its original position" {
+            { New-VMFromConfig -Config $config -Verbose } | Should Throw "Strange Error!"
+            Assert-MockCalled Dismount-DiskImage -ParameterFilter { $ImagePath -eq "$root\DummyVM\MissingDisk.vhdx"}
+            "TestDrive:\Templates\Template.vhdx" | Should Exist
+        }
+        
+        
     }
 }
