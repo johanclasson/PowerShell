@@ -108,14 +108,6 @@ function New-VMFromXml {
                             [string]$drive = Mount-VhdxAndGetLargestDriveLetter $path
                             $filePath = '{0}{1}' -f $drive,$replaceContent.pathRelativeRoot
                             try {
-                                # if (-not(Test-Path $filePath)) {
-                                #     Write-Host "$filePath does not exist"
-                                #     Write-Host "x: $(Test-Path $drive)"
-                                #     write-host "Drives: $([System.IO.DriveInfo]::GetDrives().Name)"
-                                # }
-                                # else {
-                                #     Write-Host "$filePath  exist"                                    
-                                # }
                                 $expression = "(Get-Content ""$filePath"") "
                                 $replaceContent.add | %{
                                     $expression += "-replace '$($_.key)','$($_.value)' "
