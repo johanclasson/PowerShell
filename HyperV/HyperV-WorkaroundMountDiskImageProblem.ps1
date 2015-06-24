@@ -23,15 +23,25 @@ function Mount-VhdxAndGetLargestDriveLetter {
     return $drive
 }
 
+function Set-IpAddressIfNotNull([string]$Name, [string]$Ip) {
+    if (-not [string]::IsNullOrEmpty($Ip)) {
+        New-NetIPAddress -InterfaceAlias "vEthernet ($Name)" -IPAddress $Ip | Out-Null
+        Write-Verbose "Set IP of $Name to $Ip"
+    } 
+}
+
 function New-InternalVMSwitchFromXml {
     param(
         [Parameter(Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
-        [string]$Name
+        [string]$Name,
+        [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [string]$Ip
     )
     Process {
         if (-not (Get-VMSwitch -Name $Name -ErrorAction SilentlyContinue)) {
-            New-VMSwitch -Name $Name -SwitchType Internal
+            New-VMSwitch -Name $Name -SwitchType Internal | Out-Null
             Write-Verbose "Created internal switch: $Name"
+            Set-IpAddressIfNotNull -Name $Name -Ip $Ip
         }
     }
 }
@@ -41,12 +51,15 @@ function New-ExternalVMSwitchFromXml {
         [Parameter(Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
         [string]$Name,
         [Parameter(Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
-        [string]$NetAdapterName
+        [string]$NetAdapterName,
+        [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [string]$Ip
     )
     Process {
         if (-not (Get-VMSwitch -Name $Name -ErrorAction SilentlyContinue)) {
-            New-VMSwitch -Name $Name -NetAdapterName $NetAdapterName
+            New-VMSwitch -Name $Name -NetAdapterName $NetAdapterName | Out-Null
             Write-Verbose "Created external switch: $Name - $NetAdapterName"
+            Set-IpAddressIfNotNull -Name $Name -Ip $Ip
         }
     }
 }
