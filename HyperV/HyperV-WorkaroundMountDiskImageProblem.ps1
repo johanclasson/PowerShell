@@ -25,8 +25,15 @@ function Mount-VhdxAndGetLargestDriveLetter {
 
 function Set-IpAddressIfNotNull([string]$Name, [string]$Ip) {
     if (-not [string]::IsNullOrEmpty($Ip)) {
-        New-NetIPAddress -InterfaceAlias "vEthernet ($Name)" -IPAddress $Ip | Out-Null
+        New-NetIPAddress -InterfaceAlias "vEthernet ($Name)" -IPAddress $Ip -PrefixLength 24 | Out-Null
         Write-Verbose "Set IP of $Name to $Ip"
+    } 
+}
+
+function Set-DnsAddressIfNotNull([string]$Name, [string]$Dns) {
+    if (-not [string]::IsNullOrEmpty($Ip)) {
+        Set-DnsClientServerAddress -InterfaceAlias "vEthernet ($Name)" -ServerAddresses $Dns | Out-Null
+        Write-Verbose "Set DNS of $Name to $Dns"
     } 
 }
 
@@ -35,13 +42,16 @@ function New-InternalVMSwitchFromXml {
         [Parameter(Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
         [string]$Name,
         [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
-        [string]$Ip
+        [string]$Ip,
+        [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [string]$Dns
     )
     Process {
         if (-not (Get-VMSwitch -Name $Name -ErrorAction SilentlyContinue)) {
             New-VMSwitch -Name $Name -SwitchType Internal | Out-Null
             Write-Verbose "Created internal switch: $Name"
             Set-IpAddressIfNotNull -Name $Name -Ip $Ip
+            Set-DnsAddressIfNotNull -Name $Name -Dns $Dns
         }
     }
 }
@@ -53,13 +63,16 @@ function New-ExternalVMSwitchFromXml {
         [Parameter(Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
         [string]$NetAdapterName,
         [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
-        [string]$Ip
+        [string]$Ip,
+        [Parameter(Mandatory=$false, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [string]$Dns
     )
     Process {
         if (-not (Get-VMSwitch -Name $Name -ErrorAction SilentlyContinue)) {
             New-VMSwitch -Name $Name -NetAdapterName $NetAdapterName | Out-Null
             Write-Verbose "Created external switch: $Name - $NetAdapterName"
             Set-IpAddressIfNotNull -Name $Name -Ip $Ip
+            Set-DnsAddressIfNotNull -Name $Name -Dns $Dns
         }
     }
 }
@@ -125,7 +138,7 @@ function New-VMFromXml {
                                 $replaceContent.add | %{
                                     $expression += "-replace '$($_.key)','$($_.value)' "
                                 }
-                                $expression += "| Out-File ""$filePath"""
+                                $expression += "| Out-File ""$filePath"" -Encoding utf8"
                                 Invoke-Expression $expression
                                 Write-Verbose "Replaced content of $filePath"
                             }
@@ -133,6 +146,7 @@ function New-VMFromXml {
                                 Dismount-DiskImage -ImagePath $path
                                 if ($tagName -eq "MoveVhd") {
                                     Move-Item $path $sourcePath # Move back vhd
+                                    Write-Verbose "Moved back $path to $sourcePath"
                                 }
                                 throw
                             }

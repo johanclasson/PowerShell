@@ -3,7 +3,7 @@ Created using Windows AFG found at:
 http://windowsafg.no-ip.org
 
 Installation Notes
-Location: 
+Location:
 Notes: Enter your comments here...
 **************************************************-->
 
@@ -12,13 +12,13 @@ Notes: Enter your comments here...
 <settings pass="windowsPE">
 <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <SetupUILanguage>
-<UILanguage>__Locale__</UILanguage>
+<UILanguage>en-US</UILanguage>
 </SetupUILanguage>
-<InputLocale>041d:0000041d</InputLocale>
-<SystemLocale>__Locale__</SystemLocale>
-<UILanguage>__Locale__</UILanguage>
-<UILanguageFallback>__Locale__</UILanguageFallback>
-<UserLocale>__Locale__</UserLocale>
+<InputLocale>__Locale__</InputLocale>
+<SystemLocale>en-US</SystemLocale>
+<UILanguage>en-US</UILanguage>
+<UILanguageFallback>en-US</UILanguageFallback>
+<UserLocale>en-US</UserLocale>
 </component>
 <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <DiskConfiguration>
@@ -86,11 +86,11 @@ Notes: Enter your comments here...
 </settings>
 <settings pass="specialize">
 <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-<InputLocale>041d:0000041d</InputLocale>
-<SystemLocale>__Locale__</SystemLocale>
-<UILanguage>__Locale__</UILanguage>
-<UILanguageFallback>__Locale__</UILanguageFallback>
-<UserLocale>__Locale__</UserLocale>
+<InputLocale>__Locale__</InputLocale>
+<SystemLocale>en-US</SystemLocale>
+<UILanguage>en-US</UILanguage>
+<UILanguageFallback>en-US</UILanguageFallback>
+<UserLocale>en-US</UserLocale>
 </component>
 <component name="Microsoft-Windows-Security-SPP-UX" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <SkipAutoActivation>true</SkipAutoActivation>
@@ -140,7 +140,7 @@ Notes: Enter your comments here...
 <RegisteredOrganization></RegisteredOrganization>
 <RegisteredOwner>Administrator</RegisteredOwner>
 <DisableAutoDaylightTimeSet>false</DisableAutoDaylightTimeSet>
-<TimeZone>W. Europe Standard Time</TimeZone>
+<TimeZone>__TimeZone__</TimeZone>
 <VisualEffects>
 <SystemDefaultBackgroundColor>1</SystemDefaultBackgroundColor>
 </VisualEffects>

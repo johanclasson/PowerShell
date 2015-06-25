@@ -16,9 +16,9 @@ Describe "HyperV" {
         $config = [xml]@"
 <config>
 	<VMSwitches>
-		<InternalVMSwitch name="LocalComputer" ip="172.0.0.1" />
+		<InternalVMSwitch name="LocalComputer" dns="172.0.0.1" ip="172.0.0.2" />
 		<InternalVMSwitch name="LocalComputer2" />
-		<ExternalVMSwitch name="ExternalEthernet" netAdapterName="Ethernet" ip="192.168.0.66" />
+		<ExternalVMSwitch name="ExternalEthernet" netAdapterName="Ethernet" dns="192.168.0.1" ip="192.168.0.66" />
 	</VMSwitches>
 	<VMs root="$root">
 		<VM name="BrandNewVM" switches="LocalComputer,ExternalEthernet" startupBytes="512MB" dynamicMemory="true" processorCount="4">
@@ -68,6 +68,7 @@ Describe "HyperV" {
         Mock Mount-VhdxAndGetLargestDriveLetter { return "TestDrive:\" }
         Mock Dismount-DiskImage {}
         Mock New-NetIPAddress {}
+        Mock Set-DnsClientServerAddress {}
         # Yes, I'm cheating by not testing this. But I was not able to get the pipelining between the Mocked Get- and Remove-* to work.
         Mock Get-VMDvdDrive { return @() }
         Mock Remove-VMDvdDrive {}
@@ -103,11 +104,19 @@ __Password__
         }
         It "sets IP address of internal switches" {
             Assert-MockCalled New-NetIPAddress -Times 1 -Exactly -ParameterFilter { $InterfaceAlias -eq "vEthernet (LocalComputer)" -and 
-                                                                                    $IPAddress -eq "172.0.0.1"}
+                                                                                    $IPAddress -eq "172.0.0.2"}
         }
         It "sets IP address of external switches" {
             Assert-MockCalled New-NetIPAddress -Times 1 -Exactly -ParameterFilter { $InterfaceAlias -eq "vEthernet (ExternalEthernet)" -and 
                                                                                     $IPAddress -eq "192.168.0.66"}
+        }
+        It "sets DNS address of internal switches" {
+            Assert-MockCalled Set-DnsClientServerAddress -Times 1 -Exactly -ParameterFilter { $InterfaceAlias -eq "vEthernet (LocalComputer)" -and 
+                                                                                              $ServerAddresses -eq "172.0.0.1"}
+        }
+        It "sets DNS address of external switches" {
+            Assert-MockCalled Set-DnsClientServerAddress -Times 1 -Exactly -ParameterFilter { $InterfaceAlias -eq "vEthernet (ExternalEthernet)" -and 
+                                                                                              $ServerAddresses -eq "192.168.0.1"}
         }
         It "creates VMs with new vhds" {
             Assert-MockCalled New-VM -ParameterFilter { $Name -eq "BrandNewVM" -and 
