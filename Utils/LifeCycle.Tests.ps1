@@ -52,10 +52,4 @@ Describe 'Utils/LifeCycle' {
             Contains-ModuleFiles 'junkfile.txt' | Should Be $false
         }
     }
-
-    Context 'Install-ScriptInUserModule: Locked dll-file' {
-        It 'ignore locked dll-files' {
-
-        }
-    }
 }
