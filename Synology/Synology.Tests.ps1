@@ -274,6 +274,7 @@ Describe "Synology" {
     }
 
     Context "Download Subtitles with Move-Movies" {
+        Mock Is-SubtitleMissing { return $false }
         Create-DownloadFolder
 
         It "should download subtitles when sXXyYY is only in folder" {
@@ -288,6 +289,7 @@ Describe "Synology" {
     }
 
     Context "Download Subtitles with Get-MissingSubtitles" {
+        Mock Is-SubtitleMissing { return $false }
         Create-DownloadFolder
 
         It "should download subtitles when sXXyYY is only in folder" {

@@ -2,6 +2,8 @@
 $sut = "HyperV-WorkaroundMountDiskImageProblem.ps1" #(Split-Path -Leaf $MyInvocation.MyCommand.Path).Replace(".Tests.", ".")
 . "$here\$sut"
 
+Set-StrictMode -Version 1.0
+
 Describe "HyperV" {
     Context "Get-VMIP" {
         Mock Get-VM { return [PSCustomObject]@{ NetworkAdapters = [PSCustomObject]@{ IPAddresses="169.254.188.87" },[PSCustomObject]@{ IPAddresses="169.254.188.99" } } }
