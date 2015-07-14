@@ -17,5 +17,5 @@ if (-not(Test-Path $modulePath)) {
 
 Import-Module $modulePath
 
-$PSModuleAutoloadingPreference = "none"
+$PSModuleAutoloadingPreference = "none" #hepp
 Invoke-Pester $SourceDir -EnableExit
