@@ -1,6 +1,8 @@
 # PowerShell
 PowerShell modules and scripts for automation of my everyday life.
 
+![](https://johanclasson.visualstudio.com/DefaultCollection/_apis/public/build/definitions/17242261-a50b-45cd-be6b-04e5c51b0bc4/4/badge)
+
 ## Dependent modules
 * [SQLite PowerShell Provider](https://psqlite.codeplex.com/) - So that the persistent store can be used to save for example credentials or command history.
 
