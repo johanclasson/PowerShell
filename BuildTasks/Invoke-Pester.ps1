@@ -1,8 +1,6 @@
 param([string]$SourceDir = $env:BUILD_SOURCESDIRECTORY,
       [string]$TempDir = $env:TEMP)
-
 $ErrorActionPreference = "Stop"
-
 <#
 Pester is downloaded to the local user temp directory instead of the build source
 folder because of two reasons:
@@ -31,4 +29,4 @@ Set-StrictMode -Version Latest
 Import-Module $modulePath
 # Run all tests, and fail the build when a test is broken.
 $outputFile = Join-Path $SourceDir "TEST-pester.xml"
-Invoke-Pester -Path $SourceDir -OutputFile $outputFile -OutputFormat NUnitXml -EnableExit
+Invoke-Pester -Path $SourceDir -OutputFile $outputFile -OutputFormat LegacyNUnitXml -EnableExit
