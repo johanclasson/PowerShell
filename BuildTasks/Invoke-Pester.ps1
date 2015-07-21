@@ -30,4 +30,5 @@ Set-StrictMode -Version Latest
 # Load the module.
 Import-Module $modulePath
 # Run all tests, and fail the build when a test is broken.
-Invoke-Pester $SourceDir -EnableExit
+$outputFile = Join-Path $SourceDir "TEST-pester.xml"
+Invoke-Pester -Path $SourceDir -OutputFile $outputFile -OutputFormat NUnitXml -EnableExit
