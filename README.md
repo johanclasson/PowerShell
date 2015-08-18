@@ -14,6 +14,7 @@ Copy the dependent modules to your module folder, preferably by:
 Install-Module Pester
 #CodePlex
 Invoke-WebRequest "https://psqlite.codeplex.com/downloads/get/405083" -OutFile tmp.zip
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 gi .\tmp.zip | %{ [System.IO.Compression.ZipFile]::ExtractToDirectory($_.FullName, $_.Directory.FullName) }
 mi .\SQLite $env:PSModulePath.Split(';')[0]
 rm .\tmp.zip
