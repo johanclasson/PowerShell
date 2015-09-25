@@ -66,3 +66,35 @@ function Send-MailGun {
 function Save-MailGunCredential {
     Save-Credential -Key "MailGun"
 }
+
+function Invoke-MailGunMonitoredCommand(){
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [string]$MailGunDomain,
+        [Parameter(Mandatory=$True)]
+        [string]$YourEmail,
+        [Parameter(Mandatory=$True)]
+        [string]$Command
+    )
+    $lastErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $output = powershell -ExecutionPolicy RemoteSigned -NoProfile -NoLogo -Command $Command 2>&1
+    $ErrorActionPreference = $lastErrorActionPreference
+    $err = $output | ?{$_.gettype().Name -eq "ErrorRecord"}
+    if($err){
+        Add-Type -AssemblyName System.Web
+        $htmlCommand = [System.Web.HttpUtility]::HtmlEncode($Command)
+        $htmlOutput = [System.Web.HttpUtility]::HtmlEncode([string]::Join([System.Environment]::NewLine, $output)) -replace " ","&nbsp;" -replace [System.Environment]::NewLine,"<br />" -replace "<br /><br />","<br />"
+        $body = @"
+<h2>A monitored PowerShell command failed!</h3>
+<h3>Command:</h3>
+<code>$Command</code>
+<h3>Output</h3>
+<code>$htmlOutput</code>
+"@
+        Send-MailGun -MailGunDomain $MailGunDomain -EmailFrom $YourEmail -EmailTo $YourEmail -Subject "Monitored PowerShell failed!" -Body $body -Html
+        throw $err
+    }
+    Write-Output $output
+}
