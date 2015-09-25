@@ -29,3 +29,40 @@ function Send-Gmail {
 function Save-GmailCredential {
     Save-Credential -Key "Gmail"
 }
+
+function Send-MailGun {
+    Param(
+        [Parameter(Mandatory=$True)]
+        [string]$MailGunDomain,
+        [Parameter(Mandatory=$True)]
+        [string]$EmailFrom,
+        [Parameter(Mandatory=$True)]
+        [string[]]$EmailTo,
+        [Parameter(Mandatory=$True)]
+        [string]$Subject,
+        [Parameter(Mandatory=$True)]
+        [string]$Body,
+        [switch]$Html
+    )
+    $uri = "https://api.mailgun.net/v3/$MailGunDomain/messages"
+    $requestBody = @{
+        from=$EmailFrom;
+        to=[string]::Join(";",$EmailTo);
+        subject=$Subject;
+    }
+    if ($Html) {
+        $requestBody += @{html = $Body}
+    }
+    else {
+        $requestBody += @{text = $Body}
+    }
+    $cred = Get-SavedCredential 'MailGun'
+    $result = Invoke-WebRequest -UseBasicParsing -Uri $uri -Body $requestBody -Method Post -Credential $cred
+    if ($result.StatusCode -ne 200) {
+        throw "Got status code $($result.StatusCode) when posting to $uri"
+    }
+}
+
+function Save-MailGunCredential {
+    Save-Credential -Key "MailGun"
+}
