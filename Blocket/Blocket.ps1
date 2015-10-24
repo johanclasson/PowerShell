@@ -12,7 +12,8 @@ function Get-BlocketSearchHits([string]$Query, [string]$Category, [string]$Area)
     # w=1 => bara area
     # w=2 => Närliggande
     # w=3 => hela sverige
-    $baseUri = "http://www.blocket.se/$($Area)?q=$($query.Trim())&cg=$Category&w=1&st=s&c=&ca=8&is=1&l=0&md=th"
+    $baseUri = "http://www.blocket.se/$($Area)?q=$($query.Trim())&cg=$Category"
+    Write-Verbose "Search uri: $($baseUri)"
     return Read-Html $baseUri | Select-HtmlByClass "item_link" | Get-HtmlAttribute href
 }
 
@@ -92,7 +93,7 @@ function Send-BlocketSearchHitsMail {
         [string]$EmailFrom
     )
     Process {
-        $hits = Get-BlocketSearchHits $Query
+        $hits = Get-BlocketSearchHits -Query $Query -Category $Category -Area $Area
         # Mute emails the first run
         if (-not (Test-Query $Query)) {
             Add-Query $Query
