@@ -24,9 +24,10 @@ function Get-SearchHitContent([string]$Uri) {
     $text = $html | Select-HtmlByClass body | foreach { 
         $_.innerHtml.Replace("<!-- Info page -->","").Trim()
     }
+    $place = $html | Select-HtmlByClass area_label | %{ $_.innerText.Trim((' ','(',')')) }
     $price = $html | Select-HtmlById vi_price | foreach { $_.innerText.Trim() }
     
-    return New-Object PSObject -Property @{ 'images'=$images; 'title'=$title; 'text'=$text; 'price'="$price"; 'uri'=$Uri }
+    return New-Object PSObject -Property @{ 'images'=$images; 'title'=$title; 'text'=$text; 'place'="$place"; 'price'="$price"; 'uri'=$Uri }
 }
 
 # Mocked
@@ -59,6 +60,8 @@ function Format-Body {
         [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
         [string]$Text,
         [Parameter(ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
+        [string]$Place,
+        [Parameter(ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
         [string]$Price,
         [Parameter(Mandatory=$True, ValueFromPipeline=$True, ValueFromPipelineByPropertyName)]
         [string]$Uri
@@ -73,6 +76,7 @@ function Format-Body {
         return @"
 <h2>$Title</h2>
 <p>$Text</p>
+<h3>Plats</h3><p>$Place</p>
 $PriceTags
 <p>$imageTags</p>
 <p><a href="$Uri">Se annonsen på Blocket</a></p>

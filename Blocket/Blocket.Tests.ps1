@@ -49,8 +49,8 @@ Describe "Blocket" {
             Set-Variable body $Body -Scope Global
         }
         Mock Get-BlocketSearchHits -ParameterFilter { $Query -eq "..." } { return "url1","url2" }
-        Mock Get-SearchHitContent -ParameterFilter { $Uri -eq "url1" } { return New-Object PSObject -Property @{ 'images'='imgUrl1'; 'title'='Title 1'; 'text'='Text 1'; 'price'='Price 1'; 'uri'='url1' } }
-        Mock Get-SearchHitContent -ParameterFilter { $Uri -eq "url2" } { return New-Object PSObject -Property @{ 'images'='imgUrl2'; 'title'='Title 2'; 'text'='Text 2'; 'price'='Price 2'; 'uri'='url2' } }
+        Mock Get-SearchHitContent -ParameterFilter { $Uri -eq "url1" } { return New-Object PSObject -Property @{ 'images'='imgUrl1'; 'title'='Title 1'; 'text'='Text 1'; 'place'='Place 1';  'price'='Price 1';'uri'='url1' } }
+        Mock Get-SearchHitContent -ParameterFilter { $Uri -eq "url2" } { return New-Object PSObject -Property @{ 'images'='imgUrl2'; 'title'='Title 2'; 'text'='Text 2'; 'place'='Place 2';  'price'='Price 2'; 'uri'='url2' } }
         Mock Test-Hit
         Mock Test-Query { return $true } # Simulate not first time query is used
         Mock Add-Hit
@@ -80,6 +80,7 @@ Describe "Blocket" {
             $body | Should Be @"
 <h2>Title 2</h2>
 <p>Text 2</p>
+<h3>Plats</h3><p>Place 2</p>
 <h3>Pris</h3><p>Price 2</p>
 <p><img src="imgUrl2"/></p>
 <p><a href="url2">Se annonsen på Blocket</a></p>
@@ -105,5 +106,11 @@ Describe "Blocket" {
         It "gets images with correct url" {
             Check-IfAllImageUrlsAreCorrect $parsedHits | Should Be $true
         }
+
+        It "gets the place" {
+            $place = $parsedHits | select -First 1 -ExpandProperty place
+            [regex]::Match($place, "^(\w+)$").Success | Should Be $true
+        }
+
     }
 }
