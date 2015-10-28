@@ -72,7 +72,7 @@ Describe "Blocket" {
 
         It "formats the subject" {
             $subject = (Get-Variable subject -Scope Global).Value
-            $subject | Should Be "Blocket: Title 2 - Price 2"
+            $subject | Should Be "Blocket Place 2: Title 2 - Price 2"
         }
 
         It "formats the body" {

@@ -115,7 +115,7 @@ function Send-BlocketSearchHitsMail {
             $hit = $_
             $content = Get-SearchHitContent $hit
             [string]$body = $content | Format-Body
-            $subject = "Blocket: $($content.Title) - $($content.Price)"
+            $subject = "Blocket $($content.Place): $($content.Title) - $($content.Price)"
             Send-Gmail -EmailFrom $EmailFrom -EmailTo $EmailTo -Subject $subject -Body $body -Html
             Write-Log "Email with subject '$subject' to $EmailTo"
             Add-Hit $hit
