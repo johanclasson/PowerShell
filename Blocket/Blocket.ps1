@@ -20,7 +20,10 @@ function Get-BlocketSearchHits([string]$Query, [string]$Category, [string]$Area)
 function Get-SearchHitContent([string]$Uri) {
     $html = Read-Html $Uri
     $images = $html | Select-HtmlByXPath '//img[@data-src]' | Get-HtmlAttribute 'data-src'
-    $title = $html | Select-HtmlByClass subject_large | select -First 1 | %{ $_.innerText.Trim() }
+    $title = $html | Select-HtmlByXPath "//h1" | select -First 1 | %{ $_.innerText.Trim() }
+    if ([string]::IsNullOrEmpty($title)) {
+        $title = $html | Select-HtmlByXPath "//h2" | select -First 1 | %{ $_.innerText.Trim() }
+    }
     $text = $html | Select-HtmlByClass body | foreach { 
         $_.innerHtml.Replace("<!-- Info page -->","").Trim()
     }
