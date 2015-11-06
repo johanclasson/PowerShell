@@ -24,8 +24,11 @@ function Get-SearchHitContent([string]$Uri) {
     if ([string]::IsNullOrEmpty($title)) {
         $title = $html | Select-HtmlByXPath "//h2" | select -First 1 | %{ $_.innerText.Trim() }
     }
-    $text = $html | Select-HtmlByClass body | foreach { 
-        $_.innerHtml.Replace("<!-- Info page -->","").Trim()
+    $text = $html | Select-HtmlByClass body | select -ExpandProperty innerHtml
+    $text = $text -join " "
+    $indexOfInfoPage = $text.IndexOf("<!-- Info page -->")
+    if ($indexOfInfoPage -ge 0) {
+        $text = $text.Substring(0, $indexOfInfoPage).Trim()
     }
     $place = $html | Select-HtmlByClass area_label | %{ $_.innerText.Trim((' ','(',')')) }
     $price = $html | Select-HtmlById vi_price | foreach { $_.innerText.Trim() }
@@ -130,6 +133,8 @@ function Send-BlocketSearchHitsMail {
 function Remove-BlocketRecordedHits {    [CmdletBinding()]    param()    Remove-Item sqlite:\BlocketSearchHit\*
     Remove-Item sqlite:\BlocketSearchQuery\*
 }
+
+Get-SearchHitContent -Uri "http://www.blocket.se/ostergotland/VillaAntiks_Charmiga_Mobler_med_Historia_63684584.htm?ca=14&w=1" | Format-Body
 
 #Remove-BlocketData -Verbose
 #Send-BlocketSearchHitsMail "*hemnes* *byrå*" "johan@classon.eu","johan2@classon.eu" "johan@classon.eu" -Verbose
