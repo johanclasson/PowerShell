@@ -1,0 +1,35 @@
+// Available variables which can be used inside of strings.
+// ${workspaceRoot}: the root folder of the team
+// ${file}: the current opened file
+// ${fileBasename}: the current opened file's basename
+// ${fileDirname}: the current opened file's dirname
+// ${fileExtname}: the current opened file's extension
+// ${cwd}: the current working directory of the spawned process
+
+// PowerShell
+{
+    "version": "0.1.0",
+    // "command": "c:\\windows\\System32\\windowspowershell\\v1.0\\powershell.exe",
+    "command": "c:\\windows\\syswow64\\windowspowershell\\v1.0\\powershell.exe",
+    "isShellCommand": true,
+    "args": [
+        "-NoProfile",
+		"-ExecutionPolicy",
+		"RemoteSigned",
+		"${workspaceRoot}\\.vscode\\Invoke-Pester.ps1"
+    ],
+    "tasks": [
+        {
+            "taskName": "Build",
+            "isBuildCommand": true,
+            "showOutput": "always",
+			"args": [ "${workspaceRoot}" ]
+        },
+        {
+            "taskName": "Test",
+            "isTestCommand": true,
+            "showOutput": "always",
+			"args": [ "${fileDirname}" ]			
+        }
+    ]
+}
