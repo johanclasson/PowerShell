@@ -79,7 +79,7 @@ function Invoke-MailGunMonitoredCommand(){
     )
     $lastErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    $output = powershell -ExecutionPolicy RemoteSigned -NoProfile -NoLogo -Command $Command 2>&1
+    $output = powershell -ExecutionPolicy RemoteSigned -NoProfile -NoLogo -Command "$Command " 2>&1
     $ErrorActionPreference = $lastErrorActionPreference
     $err = $output | ?{$_.gettype().Name -eq "ErrorRecord"}
     if($err){
