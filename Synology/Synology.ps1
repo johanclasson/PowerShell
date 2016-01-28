@@ -142,7 +142,7 @@ function Move-Movie {
 			Move-ItemIfPresent $srtSourcePath1 $srtDestinationPath
 			Move-ItemIfPresent $srtSourcePath2 $srtDestinationPath
             #Move movie
-            Move-Item -LiteralPath $File -Destination $destinationPath -Force
+            Move-Item -LiteralPath $File.FullName -Destination $destinationPath -Force
             Write-Verbose "Moved $File to $destSubPath"
             #Tidy up folder
             if ($TidyUp -and -not ($dirsToTidyUp -contains $File.Directory.FullName)) {
