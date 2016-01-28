@@ -6,7 +6,8 @@ function Get-Movies {
         [Parameter(Mandatory=$true)]
         [string]$Path
     )
-    return Get-ChildItem -LiteralPath $Path -Include @("*.avi","*.mp4","*.flv","*.mkv") -Recurse |
+    return Get-ChildItem -LiteralPath $Path -Recurse |
+        where { $_.FullName -match "(\.mkv$|\.mp4$|\.flv$|\.avi$)" }
         where { -not ($_.Mode -match "d") }
 }
 
@@ -105,7 +106,7 @@ function Move-Movie {
 
 	function Move-ItemIfPresent([string]$Source, [string]$Destination) {
         if (Test-Path -LiteralPath $Source) {
-            Move-Item -LiteralPath $Source -Destination $Destination
+            Move-Item -LiteralPath $Source -Destination $Destination -Force
             Write-Verbose "Moved $Source to $Destination"
         }	
 	}
@@ -300,6 +301,8 @@ function Get-MissingSubtitles {
     }
 }
 
+#Get-Movies -Path \\johansnas\Nerladdat | select -ExpandProperty Extension | select -Unique 
+#Move-Movie -Path \\johansnas\Nerladdat -Destination \\johansnas\video\TV-serier -TidyUp -Verbose
 #Get-MissingSubtitles -Path w:\ -Verbose
 
 # TODO: Recognize 4x07 format
