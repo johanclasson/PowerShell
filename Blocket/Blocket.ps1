@@ -134,7 +134,7 @@ function Remove-BlocketRecordedHits {    [CmdletBinding()]    param()    Remo
     Remove-Item sqlite:\BlocketSearchQuery\*
 }
 
-Get-SearchHitContent -Uri "http://www.blocket.se/ostergotland/VillaAntiks_Charmiga_Mobler_med_Historia_63684584.htm?ca=14&w=1" | Format-Body
+#Get-SearchHitContent -Uri "http://www.blocket.se/ostergotland/VillaAntiks_Charmiga_Mobler_med_Historia_63684584.htm?ca=14&w=1" | Format-Body
 
 #Remove-BlocketData -Verbose
 #Send-BlocketSearchHitsMail "*hemnes* *byrå*" "johan@classon.eu","johan2@classon.eu" "johan@classon.eu" -Verbose
