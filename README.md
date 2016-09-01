@@ -76,4 +76,4 @@ Import-Module Utils
 Read-Html "http://mysite.xyz" | Select-HtmlById myid | Get-HtmlAttribute href
 ```
 
-One odd thing though. The `myHtmlNode.Select(xpath)` of Html Agility Pack seams to return hits from the whole document and not only children of the node. Therefore, chaining commands like `Select-HtmlById myid | Select-HtmlImage` makes no sense. I you want to query for images under a tag with id myid, use the a complete XPath query instead. For example `Select-HtmlByXPath '//*[@id="myid"]//img'`.
+One odd thing though. The `myHtmlNode.Select(xpath)` of Html Agility Pack seams to return hits from the whole document and not only children of the node. Therefore, chaining commands like `Select-HtmlById myid | Select-HtmlImage` makes no sense. If you want to query for images under a tag with id myid, use the a complete XPath query instead. For example `Select-HtmlByXPath '//*[@id="myid"]//img'`.
