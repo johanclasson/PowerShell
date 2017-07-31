@@ -234,10 +234,10 @@ Describe "Synology" {
         $movies = Get-Movies -Path "Testdrive:\"
 
         It "finds some movies" {
-            $movies.Length | Should Not Be 0
+            @($movies).Length | Should Not Be 0
         }
 
-        It "does not find folders with move extensions" {
+        It "does not find folders with movie extensions" {
             $foldersWithoutFiles = $movies | ?{ $_.Mode -match "d" }
             @($foldersWithoutFiles).Length | Should Be 0
         }

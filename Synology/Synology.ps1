@@ -7,7 +7,7 @@ function Get-Movies {
         [string]$Path
     )
     return Get-ChildItem -LiteralPath $Path -Recurse |
-        where { $_.FullName -match "(\.mkv$|\.mp4$|\.flv$|\.avi$)" }
+        where { $_.FullName -match "(\.mkv$|\.mp4$|\.flv$|\.avi$)" } |
         where { -not ($_.Mode -match "d") }
 }
 
