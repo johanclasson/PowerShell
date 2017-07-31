@@ -178,13 +178,21 @@ function Move-Movie {
 }
 
 # Mocked out
-function Save-MissingSubtitle([string]$Text) {
+function Save-MissingSubtitleSql([string]$Text) {
     New-Item sqlite:\SubsceneSearchMiss -text $Text | Out-Null
 }
 
 # Mocked out
-function Is-SubtitleMissing([string]$Text) {
+function Is-SubtitleMissingSql([string]$Text) {
     return @(Get-ChildItem sqlite:\SubsceneSearchMiss -Filter "text='$Text'").Length -gt 0
+}
+
+function Save-MissingSubtitle([string]$Text) {
+    Save-MissingSubtitleSql ($Text -replace "'","''")
+}
+
+function Is-SubtitleMissing([string]$Text) {
+    return Is-SubtitleMissingSql ($Text -replace "'","''")
 }
 
 function Invoke-DownloadSubtitle {

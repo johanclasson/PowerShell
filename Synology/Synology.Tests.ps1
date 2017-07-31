@@ -198,6 +198,8 @@ function Create-DownloadFolder {
 "TestDrive:\Download\v24164","-a---"
 "TestDrive:\Download\v241641","-a---"
 "TestDrive:\Download\Wildest.Islands.Series.2.3of5.Vancouver.Island.Rivers.Of.Life.540p.PDTV.x264.AAC.MVGroup.org.mp4","-a---"
+"TestDrive:\Download\The.Handmaid's.Tale.S01E01.Offred.720p.WEBRip.2CH.x265.HEVC-PSA.mkv","-a----"
+"TestDrive:\Download\The.Handmaid's.Tale.S01E02.Birth.Day.720p.WEBRip.2CH.x265.HEVC-PSA.mkv","-a----"
 "@ | ConvertFrom-Csv
     $files | %{
         $type = "File"
@@ -274,7 +276,8 @@ Describe "Synology" {
     }
 
     Context "Download Subtitles with Move-Movies" {
-        Mock Is-SubtitleMissing { return $false }
+        Mock Is-SubtitleMissingSql { return $false }
+        Mock Save-MissingSubtitleSql {}
         Create-DownloadFolder
 
         It "should download subtitles when sXXyYY is only in folder" {
@@ -286,10 +289,17 @@ Describe "Synology" {
             Move-Movie -Path "TestDrive:\Download\The.Walking.Dead.S05E16.PROPER.HDTV.x264-KILLERS[ettv]" -Destination TestDrive:\Movies
             "TestDrive:\Movies\The Walking Dead\S05\The.Walking.Dead.S05E16.PROPER.HDTV.x264-KILLERS.srt" | Should Exist
         }
+
+        It "should be able to search and save movie titles with apostrophes" {
+            Mock Write-Warning {} # Supress warning output of that no subtitle exists for the movie
+            Move-Movie -Path "TestDrive:\Download\The.Handmaid's.Tale.S01E01.Offred.720p.WEBRip.2CH.x265.HEVC-PSA.mkv" -Destination TestDrive:\Movies
+            Assert-MockCalled Is-SubtitleMissingSql -ParameterFilter { $Text -eq "English The.Handmaid''s.Tale.S01E01.Offred.720p.WEBRip.2CH.x265.HEVC-PSA" } -Times 1 -Exactly
+            Assert-MockCalled Save-MissingSubtitleSql -ParameterFilter { $Text -eq "English The.Handmaid''s.Tale.S01E01.Offred.720p.WEBRip.2CH.x265.HEVC-PSA" } -Times 1 -Exactly
+        }
     }
 
     Context "Download Subtitles with Get-MissingSubtitles" {
-        Mock Is-SubtitleMissing { return $false }
+        Mock Is-SubtitleMissingSql { return $false }
         Create-DownloadFolder
 
         It "should download subtitles when sXXyYY is only in folder" {
